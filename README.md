@@ -1,4 +1,6 @@
-# The Warmth Gap
+# Climate Poor
+
+Live at https://climatepoor.pages.dev
 
 An interactive data tool on winter indoor comfort and energy hardship across the EU, US and Canada. The thesis is that latitude does not decide who stays warm. Income, building stock and fuel do. The centerpiece "Warm for whom?" view contrasts indoor temperature in smart-thermostat homes (tado) against the share of the whole population unable to keep warm (Eurostat), exposing the gap between the comfort of the connected few and the cold of everyone else.
 
@@ -58,7 +60,7 @@ The site is fully static, so any static host works. Two routes for Cloudflare.
 cd warmth-gap
 git init
 git add .
-git commit -m "warmth gap: initial site"
+git commit -m "climate poor: initial site"
 git branch -M main
 git remote add origin git@github.com:emonabiogit/warmth-gap.git   # create the empty repo first
 git push -u origin main
@@ -75,7 +77,7 @@ Save and deploy. Every push to `main` redeploys. Important: commit `public/data/
 ### Route B: Wrangler (deploy straight from your machine)
 
 ```bash
-npx wrangler pages deploy public --project-name=warmth-gap
+npx wrangler pages deploy public --project-name=climatepoor
 # or: npm run deploy
 ```
 

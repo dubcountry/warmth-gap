@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>The Warmth Gap: winter comfort across the EU, US and Canada</title>
+<title>Climate Poor: winter comfort across the EU, US and Canada</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.27.0/plotly.min.js"></script>
 <style>
   :root{
@@ -56,8 +56,39 @@
   .foot p{font-size:11.5px; color:var(--grey); line-height:1.55; margin:0 0 7px; max-width:880px;}
   .foot b{color:#4a565d; font-weight:700;}
   button:focus-visible, select:focus-visible, input:focus-visible{outline:2px solid var(--red); outline-offset:2px;}
+  /* the map div is sized in JS; this guarantees the insight below always clears it */
+  #plot{margin-bottom:8px;}
+  .insight{clear:both;}
+  /* "Same question?" matched-vs-headline strip (plain HTML, no chart) */
+  .cmp-prose{font-size:14.5px; line-height:1.6; color:#2b2f36; margin:2px 0 16px; max-width:780px;}
+  .cmp-row{display:grid; grid-template-columns:1.15fr 1fr 1fr; gap:12px; padding:11px 0; border-top:1px solid var(--line); align-items:start;}
+  .cmp-row-head{border-top:0; padding-top:0;}
+  .cmp-head{font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--grey); font-weight:700;}
+  .cmp-place{font-weight:700; font-size:14.5px; border-left:3px solid var(--grey); padding-left:9px;}
+  .cmp-num{font-family:Georgia,'Times New Roman',serif; font-size:22px; font-weight:700; line-height:1;}
+  .cmp-lab{font-size:11.5px; color:var(--grey); margin-top:4px; line-height:1.35;}
+  .cmp-note{font-size:12.5px; color:var(--grey); margin:13px 2px 0; line-height:1.5; max-width:780px;}
+  /* build-a-comparison tool, sits under the card on every tab */
+  .compare-tool{background:var(--paper); border:1px solid var(--line); padding:16px 18px; margin:22px 0 0;}
+  .ct-head{font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:var(--grey); margin:0 0 11px;}
+  .ct-controls{display:flex; flex-wrap:wrap; align-items:center; gap:8px; font-size:13.5px; color:#3c4750;}
+  .ct-controls select{font:inherit; font-size:13.5px; color:var(--ink); border:1px solid var(--line);
+    background:var(--paper); padding:6px 8px; border-radius:0; max-width:100%;}
+  .ct-controls button{font:inherit; font-size:13px; font-weight:600; color:#fff; background:var(--ink);
+    border:0; padding:7px 16px; cursor:pointer;}
+  .ct-controls button:hover{background:#000;}
+  .ct-result{font-size:14.5px; line-height:1.62; color:var(--ink); margin:14px 0 0; max-width:780px;
+    border-left:3px solid var(--grid); padding-left:14px;}
+  .ct-result:empty{display:none;}
+  .ct-result b{font-weight:700;}
   @media (prefers-reduced-motion:reduce){ .chartcard{transition:none;} }
-  @media (max-width:560px){ .focus{margin-left:0;} #plot{height:460px;} .slider input[type=range]{width:150px;} }
+  @media (max-width:560px){
+    .focus{margin-left:0;} #plot{height:460px;} .slider input[type=range]{width:150px;}
+    .cmp-row{grid-template-columns:1fr 1fr; gap:10px;}
+    .cmp-row-head{display:none;}
+    .cmp-place{grid-column:1 / -1; margin-bottom:2px;}
+    .ct-controls select{flex:1 1 100%;}
+  }
 </style>
 </head>
 <body>
@@ -66,7 +97,7 @@
   <header>
     <div class="tab"></div>
     <div class="eyebrow">Thermal comfort &middot; EU &middot; US &middot; Canada</div>
-    <h1>The warmth gap</h1>
+    <h1>Climate Poor</h1>
     <p class="dek">An interactive look at how warm people keep their homes in winter across the EU, US and Canada, and who can afford to. The pattern that keeps showing up: the mildest climates hold some of the coldest homes, because income, building stock and fuel decide who stays warm, not latitude.</p>
   </header>
 
@@ -76,7 +107,7 @@
     <div class="tabs" id="tabs">
       <button data-view="map" class="on">Who stays warm</button>
       <button data-view="scatter">Is climate to blame?</button>
-      <button data-view="compare">EU vs US vs Canada</button>
+      <button data-view="compare">Same question?</button>
       <button data-view="divergence">Warm for whom?</button>
     </div>
     <label class="focus" id="focusWrap">Highlight
@@ -95,11 +126,24 @@
       Year <input type="range" id="yearSlider"><b id="yearLabel"></b>
     </div>
     <div id="plot"></div>
+    <div id="compareHTML" style="display:none"></div>
     <div class="legend" id="legend"></div>
     <p class="source" id="source"></p>
   </section>
 
   <p class="insight" id="insight"></p>
+
+  <section class="compare-tool" id="compareTool">
+    <div class="ct-head">Build a comparison</div>
+    <div class="ct-controls">
+      <span>Compare</span>
+      <select id="cmpA" aria-label="First place to compare"></select>
+      <span>with</span>
+      <select id="cmpB" aria-label="Second place to compare"></select>
+      <button id="cmpBtn" type="button">Compare</button>
+    </div>
+    <p class="ct-result" id="cmpResult"></p>
+  </section>
 
   <footer class="foot">
     <div class="footrule"></div>
@@ -170,10 +214,10 @@ const MAP_META={
 
 const VIEW={
   scatter:{title:'Cold climates, warm homes',
-    dek:'Heating degree days against the share unable to keep warm. Bubble size shows GDP per capita. The dashed line is what intuition predicts.',
+    dek:'Heating degree days against the share unable to keep warm. Bubble size shows GDP per capita. The dashed line is what intuition predicts. Heating degree days add up how far each day falls below a comfort threshold over the year, so a high number means a long, cold heating season (Finland near 5000) and a low one means barely any (Cyprus near 600).',
     source:'Source: Eurostat (ilc_mdes01, nrg_chdd_a, nama_10_pc).', focus:true},
-  compare:{title:'Three rulers, not one',
-    dek:'Why the headline numbers do not line up. Solid dot is each country\u2019s headline figure; hollow dot is the measure closest to the EU question. The faint band marks only the lowest and highest reporting region, not a full distribution.',
+  compare:{title:'Three places, three different questions',
+    dek:'The headline shares look far apart, but each place is answering a different survey question. Match the question and they move much closer.',
     source:'Source: Eurostat; EIA RECS 2020 and 2024; Statistics Canada.', focus:false},
   divergence:{title:'Warm for whom?',
     dek:'Indoor temperature in smart-thermostat homes against the share of the whole population unable to keep warm. The two diverge most where comfort is a luxury.',
@@ -218,13 +262,23 @@ function divPoints(){
 const ringTrace=(x,y)=>({type:'scatter',mode:'markers',x:[x],y:[y],hoverinfo:'skip',showlegend:false,
   marker:{size:24,color:'rgba(0,0,0,0)',line:{color:'#E3120B',width:2.5}}});
 
-// Plotly geo preserves the map's aspect ratio, so a short fixed height leaves
-// the choropleth narrow and centred on wide screens. Size the height from the
-// card width instead, clamped so it fills the card on desktop and is unchanged
-// on mobile (the clamp floor matches the prior mobile height).
+// Every chart goes through here so interactivity is uniform: no modebar, no
+// scroll/double-click zoom, no drag pan, and hover-only tooltips that never
+// latch (hovermode 'closest', dragmode off). Maps and scatters all share this.
+const PLOT_CONFIG={displayModeBar:false, scrollZoom:false, doubleClick:false, responsive:true};
+function plot(traces, layout){
+  layout=Object.assign({hovermode:'closest', dragmode:false}, layout);
+  return Plotly.newPlot('plot', traces, layout, PLOT_CONFIG);
+}
+
+// Plotly geo preserves the map's aspect ratio, so a short fixed height left the
+// choropleth as a narrow vertical strip on wide screens. Two-part fix: (1) the
+// geo window below is a wide landscape lon/lat box so Europe spans the card
+// width, and (2) the container height tracks the card width here, clamped, so
+// the box is tall enough to contain the map and the insight below never rides up.
 function mapHeight(){
   const w=$('plot').clientWidth||card.clientWidth||700;
-  return Math.min(Math.max(Math.round(w*0.7),460),820);
+  return Math.min(Math.max(Math.round(w*0.62),460),760);
 }
 
 function drawMap(metric){
@@ -247,13 +301,25 @@ function drawMap(metric){
   const layout={paper_bgcolor:PAPER,font:FONT,margin:{t:6,b:0,l:0,r:0},height:mapHeight(),
     geo:{scope:'europe',resolution:50,showcountries:true,countrycolor:'#fff',showframe:false,
       showcoastlines:false,showland:true,landcolor:'#e7ebec',bgcolor:PANEL,
-      lonaxis:{range:[-11,30]},lataxis:{range:[34,71]}}};
-  Plotly.newPlot('plot',[trace],layout,{displayModeBar:false,responsive:true});
+      projection:{type:'mercator'},
+      lonaxis:{range:[-26,46]},lataxis:{range:[33,71]}}};
+  // dragmode:false (from plot()) plus scrollZoom/doubleClick off keeps the map fixed: no zoom, no pan.
+  plot([trace],layout);
 }
 
+// Explicit label sides for the crowded points so labels do not stack. Finland
+// is intentionally absent here: it is labelled only by the blue annotation
+// below, so its point text stays blank (no more double "Finland").
+const SCATTER_LABELPOS={
+  Greece:'top center', Spain:'middle left', Portugal:'bottom center',
+  Bulgaria:'top right', Romania:'bottom right', Lithuania:'top left',
+  France:'middle left', Italy:'bottom center', Slovakia:'middle right',
+  Cyprus:'top center', Serbia:'bottom left', Montenegro:'middle right',
+  Albania:'middle left', 'North Macedonia':'bottom center', Turkiye:'top center'
+};
 function drawScatter(){
   const pts=points();
-  if(!pts.length){ Plotly.newPlot('plot',[],{paper_bgcolor:PAPER,height:510},{displayModeBar:false}); return; }
+  if(!pts.length){ plot([],{paper_bgcolor:PAPER,height:510}); return; }
   const maxd=Math.max(...pts.map(p=>p.d));
   // Bubble size is min-max normalised across all plotted points to a pixel
   // range of about 9 to 35. Live gdp is GDP per capita in absolute euros, so a
@@ -261,60 +327,72 @@ function drawScatter(){
   const gvals=pts.map(p=>p.gdp).filter(g=>g!=null);
   const gmin=Math.min(...gvals), gmax=Math.max(...gvals);
   const bubbleSize=g=>(g==null)?9:9+26*Math.sqrt((g-gmin)/Math.max(gmax-gmin,1));
+  // On narrow screens label fewer points and shrink the font so nothing collides.
+  const mobile=window.matchMedia('(max-width:560px)').matches;
+  const labelThresh=mobile?15:8;
+  const labelSize=mobile?9:10;
+  // Finland and the worst country each get their own arrow annotation below, so
+  // they are excluded from the point text to avoid a doubled label.
+  const fin=pts.find(p=>p.iso==='FIN');
+  let worst=pts[0]; pts.forEach(p=>{ if(p.d>worst.d) worst=p; });
   const regions=[...new Set(pts.map(p=>p.region))];
   const traces=regions.map(r=>{
     const items=pts.filter(p=>p.region===r);
     return {type:'scatter',mode:'markers+text',name:r,
       x:items.map(p=>p.hdd),y:items.map(p=>p.d),
-      text:items.map(p=>(p.d>=8||p.iso==='FIN')?p.name:''),
-      textposition:'top center',textfont:{size:10,color:'#3c4750'},
+      text:items.map(p=>(p.d>=labelThresh&&p.iso!=='FIN'&&p.name!==worst.name)?p.name:''),
+      textposition:items.map(p=>SCATTER_LABELPOS[p.name]||'top center'),textfont:{size:labelSize,color:'#3c4750'},
       customdata:items.map(p=>[p.gdp,p.name]),
       hovertemplate:'<b>%{customdata[1]}</b><br>Heating degree days: %{x}<br>Unable to keep warm: %{y}%<br>GDP/capita: EUR %{customdata[0]}<extra>'+r+'</extra>',
       marker:{size:items.map(p=>bubbleSize(p.gdp)),color:REGION_COLOR[r],line:{color:'#fff',width:1.4},sizemode:'diameter'}};
   });
-  const fin=pts.find(p=>p.iso==='FIN');
-  let worst=pts[0]; pts.forEach(p=>{ if(p.d>worst.d) worst=p; });
   const ann=[{x:5900,y:Math.min(maxd,20)*0.99,text:'what intuition predicts',showarrow:false,font:{size:10.5,color:'#90a0a7'},xanchor:'right'}];
   if(fin) ann.push({x:fin.hdd,y:fin.d,ax:-8,ay:-42,text:'<b>Finland</b>',font:{size:11,color:'#1A476F'},arrowcolor:'#1A476F',arrowwidth:1.3});
-  if(worst) ann.push({x:worst.hdd,y:worst.d,ax:worst.hdd>3000?-60:60,ay:8,text:'<b>'+worst.name+'</b>',font:{size:11,color:'#E3120B'},arrowcolor:'#E3120B',arrowwidth:1.3});
+  // Worst-country label points straight up so it never lands on neighbouring labels (Lithuania, the dashed-line note).
+  if(worst) ann.push({x:worst.hdd,y:worst.d,ax:0,ay:-34,text:'<b>'+worst.name+'</b>',font:{size:11,color:'#E3120B'},arrowcolor:'#E3120B',arrowwidth:1.3});
+  const xtitle=mobile?'Heating degree days':'Heating degree days (colder country to the right)';
   const layout={paper_bgcolor:PAPER,plot_bgcolor:PANEL,font:FONT,height:510,margin:{t:14,b:52,l:58,r:18},showlegend:false,
-    xaxis:{title:{text:'Heating degree days (colder country to the right)',font:{size:12.5}},range:[200,6200],showgrid:false,showline:true,linecolor:'#9fb0b8',zeroline:false},
+    xaxis:{title:{text:xtitle,font:{size:12.5}},range:[200,6200],showgrid:false,showline:true,linecolor:'#9fb0b8',zeroline:false},
     yaxis:{title:{text:'% unable to keep home adequately warm',font:{size:12.5}},range:[0,Math.max(22,maxd+2)],gridcolor:GRID,zeroline:false,showline:false},
     shapes:[{type:'line',x0:1000,y0:Math.min(maxd,20),x1:6000,y1:1,line:{color:'#a9b7bd',width:1.5,dash:'dash'}}],
     annotations:ann};
   if(focusCountry){ const p=pts.find(x=>x.name===focusCountry); if(p) traces.push(ringTrace(p.hdd,p.d)); }
-  Plotly.newPlot('plot',traces,layout,{displayModeBar:false,responsive:true});
+  plot(traces,layout);
 }
 
-function drawCompare(){
-  const ys=[2,1,0];const traces=[];
-  CONT.forEach((c,i)=>{const y=ys[i];
-    // Faint band from lowest to highest reporting region. The lo/hi names and
-    // values now live in the band hover instead of crowded endpoint labels.
-    traces.push({type:'scatter',mode:'lines',x:[c.lo,c.hi],y:[y,y],line:{color:c.color,width:11},opacity:0.20,
-      hovertemplate:'<b>'+c.label+'</b><br>Lowest region: '+c.loName+' '+c.lo+'%<br>Highest region: '+c.hiName+' '+c.hi+'%<extra>regional spread</extra>',showlegend:false});
-    // Faint endpoint ticks, no text, so the band reads as a span not a blank bar.
-    traces.push({type:'scatter',mode:'markers',x:[c.lo,c.hi],y:[y,y],marker:{color:c.color,size:7,opacity:0.55},hoverinfo:'skip',showlegend:false});
-    // Thin connector between the two measures where they differ: this gap is the point.
-    if(Math.abs(c.matched-c.headline)>0.5){
-      traces.push({type:'scatter',mode:'lines',x:[c.headline,c.matched],y:[y,y],line:{color:c.color,width:2.5},opacity:0.6,hoverinfo:'skip',showlegend:false});
-    }
-    traces.push({type:'scatter',mode:'markers',x:[c.headline],y:[y],marker:{color:c.color,size:19,line:{color:'#fff',width:2.5}},
-      hovertemplate:'<b>'+c.label+'</b><br>Headline: '+c.headline+'%<br>'+c.headlineLabel+'<extra></extra>',showlegend:false});
-    if(Math.abs(c.matched-c.headline)>0.5){
-      traces.push({type:'scatter',mode:'markers',x:[c.matched],y:[y],marker:{color:'#fff',size:15,line:{color:c.color,width:3}},
-        hovertemplate:'<b>'+c.label+'</b><br>Closest match to EU question: '+c.matched+'%<br>'+c.matchedLabel+'<extra></extra>',showlegend:false});
-    }
-  });
-  const layout={paper_bgcolor:PAPER,plot_bgcolor:PANEL,font:FONT,height:430,margin:{t:22,b:48,l:132,r:30},
-    xaxis:{title:{text:'% of households',font:{size:12.5}},range:[0,46],gridcolor:GRID,zeroline:false,showline:true,linecolor:'#9fb0b8'},
-    yaxis:{tickvals:[2,1,0],ticktext:['European Union','United States','Canada'],range:[-0.6,2.65],tickfont:{size:14},showgrid:false},showlegend:false};
-  Plotly.newPlot('plot',traces,layout,{displayModeBar:false,responsive:true});
+// "Same question?" view. The old dumbbell chart did not read, so this is plain
+// HTML: a short prose lead, then a three-row strip of headline vs matched
+// numbers built from CONT. No chart library, fully responsive.
+const CMP_SHORT={
+  'European Union':{h:'Unable to keep home adequately warm (EU-SILC)', m:'Same question'},
+  'United States':{h:'Any energy insecurity (RECS 2020)', m:'Home kept at an unsafe temperature'},
+  'Canada':{h:'Energy poverty, over 10% of income on energy', m:'Not satisfied keeping warm in winter'}
+};
+function buildCompareHTML(){
+  const prose='<p class="cmp-prose">The headline shares look very different: the EU at about 9 percent unable to keep warm, '
+    +'the United States at about 27 percent reporting energy insecurity, and Canada at about 6 percent in energy poverty. '
+    +'Most of that gap is an artefact of the question, because each place runs a different survey. Match the question and they '
+    +'move much closer: the US share that kept the home at an unsafe temperature is about 10 percent, right next to the EU, and '
+    +'Canada’s dissatisfaction with keeping warm in winter is about 24 percent, the highest of the three. The coldest place in '
+    +'each, Finland, Vermont and Nunavut, is the least affected, so the driver looks like income and housing, not climate.</p>';
+  const head='<div class="cmp-row cmp-row-head"><div></div><div class="cmp-head">Headline question</div>'
+    +'<div class="cmp-head">Matched to the EU question</div></div>';
+  const rows=CONT.map(c=>{
+    const s=CMP_SHORT[c.label];
+    return '<div class="cmp-row">'
+      +'<div class="cmp-place" style="border-color:'+c.color+'">'+c.label+'</div>'
+      +'<div><div class="cmp-num">'+c.headline+'%</div><div class="cmp-lab">'+s.h+'</div></div>'
+      +'<div><div class="cmp-num">'+c.matched+'%</div><div class="cmp-lab">'+s.m+'</div></div>'
+      +'</div>';
+  }).join('');
+  const note='<p class="cmp-note">The three measures use different definitions and are not directly comparable. '
+    +'The matched column lines each one up against the EU question as closely as the published surveys allow.</p>';
+  return prose+head+rows+note;
 }
 
 function drawDivergence(){
   const pts=divPoints();
-  if(!pts.length){ Plotly.newPlot('plot',[],{paper_bgcolor:PAPER,height:510},{displayModeBar:false}); return; }
+  if(!pts.length){ plot([],{paper_bgcolor:PAPER,height:510}); return; }
   // Per-point label placement so no two visible labels collide. Finland in
   // particular is moved off the warm-and-secure pile to its lower right.
   const LABELPOS={Greece:'top center',Bulgaria:'top center',Spain:'middle left',Portugal:'bottom center',
@@ -341,7 +419,7 @@ function drawDivergence(){
       {x:16.45,y:19.4,text:'expected:<br>warmer homes,<br>fewer left cold',showarrow:false,font:{size:10,color:'#90a0a7'},xanchor:'left',align:'left'}
     ]};
   if(focusCountry){ const p=pts.find(x=>x.name===focusCountry); if(p) traces.push(ringTrace(p.tado,p.ekw)); }
-  Plotly.newPlot('plot',traces,layout,{displayModeBar:false,responsive:true});
+  plot(traces,layout);
 }
 
 function setLegend(){
@@ -357,15 +435,19 @@ function setLegend(){
     legend.innerHTML=rs.map(r=>`<span><i style="background:${REGION_COLOR[r]}"></i>${r}</span>`).join('')
       +'<span style="color:#90a0a7">Dotted red line: WHO 18\u00b0C benchmark</span>';
   } else {
-    legend.innerHTML='<span><i style="background:#006BA2"></i>EU</span><span><i style="background:#E3120B"></i>US</span><span><i style="background:#379A8B"></i>Canada</span>'
-      +'<span style="color:#90a0a7">Solid: headline figure&nbsp;&nbsp;Hollow: closest match to EU question</span>';
+    legend.innerHTML='';
   }
 }
 
 function render(){
+  // The "Same question?" view is plain HTML, not a Plotly chart, so swap the
+  // chart div out for the compare markup and skip Plotly entirely.
+  const isCompare=cur==='compare';
+  $('plot').style.display=isCompare?'none':'';
+  $('compareHTML').style.display=isCompare?'':'none';
+  if(isCompare){ $('compareHTML').innerHTML=buildCompareHTML(); return; }
   if(cur==='map')drawMap(mapMetric);
   else if(cur==='scatter')drawScatter();
-  else if(cur==='compare')drawCompare();
   else drawDivergence();
 }
 
@@ -388,6 +470,96 @@ function setView(v){
   setTexts(); syncContext(); setLegend();
   card.style.opacity='0.35';
   requestAnimationFrame(()=>{ render(); card.style.opacity='1'; });
+}
+
+// ---- build-a-comparison tool: pure templating from the in-page data ----
+// Groups map either to a REGIONS bucket (averaged over its member countries)
+// or to a CONT row (EU/US/Canada, whose metric is not identical to the others).
+const CT_GROUPS={
+  'Nordics':{kind:'region',region:'Nordic'},
+  'Baltics':{kind:'region',region:'Baltic'},
+  'Western Europe':{kind:'region',region:'Western'},
+  'Central & East':{kind:'region',region:'Central & East'},
+  'Southern Europe':{kind:'region',region:'Southern'},
+  'European Union':{kind:'cont',idx:0},
+  'United States':{kind:'cont',idx:1},
+  'Canada':{kind:'cont',idx:2}
+};
+const tadoFor=iso=>{ const t=TADO.find(x=>x.iso===iso); return t?t.t:null; };
+const avg=a=>a.length? a.reduce((s,x)=>s+x,0)/a.length : null;
+const round1=v=>v==null?null:Math.round(v*10)/10;
+function resolveEntity(name){
+  const g=CT_GROUPS[name];
+  if(g){
+    if(g.kind==='cont'){ const c=CONT[g.idx];
+      return {label:c.label,kind:'cont',warm:c.headline,matched:c.matched,
+        hdd:null,tado:null,region:null,diffDef:g.idx!==0}; }
+    const mem=Object.values(MODEL.byIso).filter(c=>c.region===g.region);
+    return {label:name,kind:'region',members:mem.length,region:g.region,diffDef:false,
+      warm:round1(avg(mem.map(c=>valAt(c.warm,MODEL.year)).filter(v=>v!=null))),
+      hdd:avg(mem.map(c=>valAt(c.hdd,MODEL.year)).filter(v=>v!=null)),
+      tado:round1(avg(mem.map(c=>tadoFor(c.iso3)).filter(v=>v!=null)))};
+  }
+  const c=Object.values(MODEL.byIso).find(c=>c.name===name);
+  if(!c) return null;
+  return {label:c.name,kind:'country',region:c.region,diffDef:false,
+    warm:round1(valAt(c.warm,MODEL.year)),hdd:valAt(c.hdd,MODEL.year),tado:tadoFor(c.iso3)};
+}
+const fmtPct=v=>v==null?null:round1(v)+' percent';
+const fmtHdd=v=>v==null?null:Math.round(v).toLocaleString('en-US');
+const fmtTemp=v=>v==null?null:round1(v)+'°C';
+function joinList(a){ a=a.filter(Boolean); if(a.length<=1) return a[0]||''; return a.slice(0,-1).join(', ')+' and '+a[a.length-1]; }
+function entClause(e){
+  if(e.kind==='cont') return 'reports about '+fmtPct(e.warm)+' on its headline measure ('+CMP_SHORT[e.label].h+')';
+  const parts=['has '+fmtPct(e.warm)+' of people unable to keep their home warm'];
+  if(e.hdd!=null) parts.push('around '+fmtHdd(e.hdd)+' heating degree days');
+  if(e.tado!=null) parts.push('smart-thermostat homes near '+fmtTemp(e.tado));
+  let lead=joinList(parts);
+  if(e.kind==='region') lead+=' across its '+e.members+' reporting countries';
+  return lead;
+}
+const regionWord=e=>e.region?(', in the '+e.region+' group,'):'';
+function buildComparison(an,bn){
+  if(an===bn) return 'Pick two different places to compare.';
+  const a=resolveEntity(an), b=resolveEntity(bn);
+  if(!a||!b) return 'No data for that pair yet.';
+  const out=['<b>'+a.label+'</b>'+regionWord(a)+' '+entClause(a)+'.',
+             '<b>'+b.label+'</b>'+regionWord(b)+' '+entClause(b)+'.'];
+  if(a.warm!=null&&b.warm!=null){
+    if(Math.abs(a.warm-b.warm)<0.6) out.push('On the headline share unable to keep warm they are close, near '+fmtPct((a.warm+b.warm)/2)+'.');
+    else { const hi=a.warm>b.warm?a:b, lo=a.warm>b.warm?b:a;
+      out.push(hi.label+' has the larger share unable to keep warm, '+fmtPct(hi.warm)+' against '+fmtPct(lo.warm)+'.'); }
+  }
+  let driver=null, warmth=null;
+  if(a.hdd!=null&&b.hdd!=null&&a.warm!=null&&b.warm!=null){
+    const colder=a.hdd>b.hdd?a:b, milder=a.hdd>b.hdd?b:a;
+    driver=(colder.warm<milder.warm)
+      ? 'The colder of the two, '+colder.label+', has fewer people left cold, so income and housing look like the driver here, not climate.'
+      : 'Here the colder '+colder.label+' also has more people left cold, the rarer case where climate and hardship move together.';
+  }
+  if(a.tado!=null&&b.tado!=null&&Math.abs(a.tado-b.tado)>=0.1){
+    const w=a.tado>b.tado?a:b, k=a.tado>b.tado?b:a;
+    warmth=w.label+' keeps its measured homes a little warmer, '+fmtTemp(w.tado)+' against '+fmtTemp(k.tado)+'.';
+  }
+  if(driver||warmth) out.push(driver||warmth);
+  if(a.diffDef||b.diffDef) out.push('The US and Canada figures use a different survey definition than the EU one, so read this as directional, not exact.');
+  return out.join(' ');
+}
+function ctOptions(){
+  const opt=n=>'<option value="'+n+'">'+n+'</option>';
+  const countries=Object.values(MODEL.byIso).map(c=>c.name).sort();
+  return '<optgroup label="Groups">'+Object.keys(CT_GROUPS).map(opt).join('')+'</optgroup>'
+        +'<optgroup label="Countries">'+countries.map(opt).join('')+'</optgroup>';
+}
+function setupCompareTool(){
+  const a=$('cmpA'), b=$('cmpB');
+  a.innerHTML=ctOptions(); b.innerHTML=ctOptions();
+  const has=n=>Object.values(MODEL.byIso).some(c=>c.name===n);
+  a.value=has('Finland')?'Finland':'Nordics';
+  b.value=has('Bulgaria')?'Bulgaria':'Southern Europe';
+  const run=()=>{ $('cmpResult').innerHTML=buildComparison(a.value,b.value); };
+  $('cmpBtn').addEventListener('click',run);
+  run();
 }
 
 // ---- load real data, fall back to sample ----
@@ -435,6 +607,7 @@ async function boot(){
   Object.values(MODEL.byIso).map(c=>c.name).sort().forEach(n=>{
     const o=document.createElement('option'); o.value=n; o.textContent=n; sel.appendChild(o);
   });
+  setupCompareTool();
   setView('map');
 }
 
@@ -442,9 +615,19 @@ $('tabs').addEventListener('click',e=>{ if(e.target.dataset.view) setView(e.targ
 $('metricpills').addEventListener('click',e=>{ if(e.target.dataset.m){ mapMetric=e.target.dataset.m; setTexts(); syncContext(); setLegend(); render(); } });
 $('focus').addEventListener('change',e=>{ focusCountry=e.target.value; render(); });
 $('yearSlider').addEventListener('input',e=>{ MODEL.year=+e.target.value; $('yearLabel').textContent=MODEL.year; render(); });
-// Re-render the map on resize so its height tracks the new card width; other
-// views just need Plotly to reflow to the container.
-window.addEventListener('resize',()=>{ if(cur==='map') drawMap(mapMetric); else Plotly.Plots.resize('plot'); });
+// Re-render map (height tracks card width) and scatter (label set depends on
+// viewport width) on resize; divergence just reflows; compare is HTML, skip it.
+window.addEventListener('resize',()=>{
+  if(cur==='compare') return;
+  if(cur==='map') drawMap(mapMetric);
+  else if(cur==='scatter') drawScatter();
+  else Plotly.Plots.resize('plot');
+});
+// Safety net for touch: tapping outside the chart clears any tooltip that latched.
+document.addEventListener('pointerdown',e=>{
+  const gd=$('plot');
+  if(gd&&gd.data&&!gd.contains(e.target)){ try{ Plotly.Fx.unhover(gd); }catch(_){ } }
+});
 
 boot();
 </script>

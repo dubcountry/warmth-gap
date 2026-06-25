@@ -4,7 +4,7 @@ Context for working on this project with Claude Code.
 
 ## What this is
 
-A static, single-page data tool ("The Warmth Gap") about winter indoor comfort and energy hardship across the EU, US and Canada. Plotly charts, Economist data-journalism styling. No framework, no build step. The web root is `public/`.
+A static, single-page data tool ("Climate Poor") about winter indoor comfort and energy hardship across the EU, US and Canada. Plotly charts, Economist data-journalism styling. No framework, no build step. The web root is `public/`.
 
 ## Files
 

@@ -6,7 +6,7 @@
   "scripts": {
     "data": "python3 scripts/eurostat_pull.py",
     "dev": "python3 -m http.server 8000 --directory public",
-    "deploy": "wrangler pages deploy public --project-name=warmth-gap"
+    "deploy": "wrangler pages deploy public --project-name=climatepoor"
   },
   "devDependencies": {
     "wrangler": "^3"
