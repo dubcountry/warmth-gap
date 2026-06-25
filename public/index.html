@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Warmth Gap — winter comfort across the EU, US and Canada</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.27.0/plotly.min.js"></script>
+<style>
+  :root{
+    --red:#E3120B; --ink:#121317; --blue:#006BA2; --cyan:#3EBCD2; --teal:#379A8B;
+    --gold:#EBB434; --darkblue:#1A476F; --grey:#6f8793; --grid:#c5d2d8;
+    --panel:#dce7ec; --paper:#ffffff; --page:#eef1f2; --line:#d4dadd;
+  }
+  *{box-sizing:border-box}
+  body{margin:0; background:var(--page); color:var(--ink);
+    font-family:'Helvetica Neue',Helvetica,Arial,sans-serif; -webkit-font-smoothing:antialiased;}
+  .page{max-width:960px; margin:0 auto; padding:34px 22px 60px;}
+  .tab{width:42px; height:6px; background:var(--red); margin-bottom:15px;}
+  .eyebrow{font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--grey); font-weight:700;}
+  h1{font-family:Georgia,'Times New Roman',serif; font-weight:700; font-size:clamp(28px,4.4vw,42px);
+    line-height:1.02; margin:7px 0 12px; letter-spacing:-0.01em;}
+  .dek{font-size:16px; line-height:1.5; color:#3c4750; max-width:690px; margin:0 0 22px;}
+  .dataline{font-size:12px; color:#8a6d3b; background:#fbf4e6; border:1px solid #f0e2c4;
+    padding:7px 11px; margin:0 0 16px; display:none;}
+  .controls{display:flex; align-items:center; gap:14px; flex-wrap:wrap;
+    border-top:1px solid var(--line); border-bottom:1px solid var(--line); padding:9px 0; margin-bottom:20px;}
+  .tabs{display:flex; flex-wrap:wrap; gap:2px;}
+  .tabs button{border:0; background:transparent; font:inherit; font-size:13.5px; font-weight:600;
+    color:var(--grey); padding:7px 12px; cursor:pointer; border-bottom:2.5px solid transparent;}
+  .tabs button:hover{color:var(--ink);}
+  .tabs button.on{color:var(--ink); border-bottom-color:var(--red);}
+  .focus{margin-left:auto; font-size:11px; color:var(--grey); text-transform:uppercase; letter-spacing:.07em;
+    display:flex; align-items:center; gap:8px;}
+  .focus select{font:inherit; font-size:13px; text-transform:none; letter-spacing:0; color:var(--ink);
+    border:1px solid var(--line); background:var(--paper); padding:5px 8px; border-radius:0;}
+  .chartcard{background:var(--paper); border:1px solid var(--line); padding:18px 18px 12px; transition:opacity .22s ease;}
+  .ctitle{font-size:17px; font-weight:700; margin:0 0 3px; letter-spacing:-0.01em;}
+  .cdek{font-size:13px; color:var(--grey); margin:0 0 10px; line-height:1.45; max-width:760px;}
+  .metricpills{display:flex; gap:0; width:fit-content; border:1px solid var(--line); margin:0 0 12px;}
+  .metricpills button{border:0; background:transparent; font:inherit; font-size:12.5px; font-weight:600;
+    color:var(--grey); padding:5px 13px; cursor:pointer; border-right:1px solid var(--line);}
+  .metricpills button:last-child{border-right:0;}
+  .metricpills button.on{background:var(--ink); color:#fff;}
+  .slider{display:flex; align-items:center; gap:10px; margin:0 0 12px; font-size:12px; color:var(--grey);}
+  .slider input[type=range]{width:210px; accent-color:var(--red);}
+  .slider b{color:var(--ink); font-size:13px; min-width:34px;}
+  #plot{width:100%; height:510px;}
+  .legend{display:flex; flex-wrap:wrap; gap:14px; margin:9px 2px 0; font-size:12px; color:#445;}
+  .legend span{display:inline-flex; align-items:center; gap:6px;}
+  .legend i{width:10px; height:10px; display:inline-block;}
+  .source{font-size:11px; color:var(--grey); margin:13px 0 2px; line-height:1.45;
+    border-top:1px solid #eef0f1; padding-top:9px;}
+  .insight{font-size:14.5px; line-height:1.56; color:var(--ink); margin:18px 2px 0; max-width:780px;
+    border-left:3px solid var(--red); padding-left:14px;}
+  .foot{margin-top:34px;} .footrule{height:1px; background:var(--line); margin-bottom:12px;}
+  .foot p{font-size:11.5px; color:var(--grey); line-height:1.55; margin:0 0 7px; max-width:880px;}
+  .foot b{color:#4a565d; font-weight:700;}
+  button:focus-visible, select:focus-visible, input:focus-visible{outline:2px solid var(--red); outline-offset:2px;}
+  @media (prefers-reduced-motion:reduce){ .chartcard{transition:none;} }
+  @media (max-width:560px){ .focus{margin-left:0;} #plot{height:460px;} .slider input[type=range]{width:150px;} }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header>
+    <div class="tab"></div>
+    <div class="eyebrow">Thermal comfort &middot; EU &middot; US &middot; Canada</div>
+    <h1>The warmth gap</h1>
+    <p class="dek">Across three continents, the warmest climates hold some of the coldest homes. Latitude does not decide who stays warm. Income, building stock and fuel do.</p>
+  </header>
+
+  <div class="dataline" id="dataline"></div>
+
+  <nav class="controls">
+    <div class="tabs" id="tabs">
+      <button data-view="map" class="on">Maps</button>
+      <button data-view="scatter">Climate vs comfort</button>
+      <button data-view="compare">Three countries</button>
+      <button data-view="divergence">Warm for whom?</button>
+    </div>
+    <label class="focus" id="focusWrap">Highlight
+      <select id="focus"><option value="">a country</option></select>
+    </label>
+  </nav>
+
+  <section class="chartcard" id="card">
+    <h2 class="ctitle" id="ctitle"></h2>
+    <p class="cdek" id="cdek"></p>
+    <div class="metricpills" id="metricpills" style="display:none">
+      <button data-m="warm" class="on">Cannot keep warm</button>
+      <button data-m="tado">Indoor warmth</button>
+    </div>
+    <div class="slider" id="sliderWrap" style="display:none">
+      Year <input type="range" id="yearSlider"><b id="yearLabel"></b>
+    </div>
+    <div id="plot"></div>
+    <div class="legend" id="legend"></div>
+    <p class="source" id="source"></p>
+  </section>
+
+  <p class="insight" id="insight"></p>
+
+  <footer class="foot">
+    <div class="footrule"></div>
+    <p><b>Sources.</b> Eurostat (ilc_mdes01, nrg_chdd_a, nama_10_pc); tado&deg; &ldquo;The Cost of Comfort&rdquo;, February 2026 (full country appendix); EIA Residential Energy Consumption Survey 2020 and 2024; Statistics Canada 2021 Census and Canadian Housing Survey.</p>
+    <p><b>Method and caveats.</b> Eurostat figures load live from the data pull (sample values shown until then). tado&deg; indoor temperatures are the published per-country averages from the report appendix; they cover smart-thermostat homes, an affluent subset that is not representative of the population. The US, Canada and EU measures use different definitions and are not directly comparable; the Three countries view shows why.</p>
+  </footer>
+
+</div>
+
+<script>
+const FONT={family:"'Helvetica Neue',Helvetica,Arial,sans-serif", color:'#2b2b2b', size:12};
+const PAPER='#ffffff', PANEL='#dce7ec', GRID='#c5d2d8';
+const REGION_COLOR={'Nordic':'#1A476F','Baltic':'#3EBCD2','Western':'#006BA2','Central & East':'#EBB434','Southern':'#E3120B'};
+
+// ISO-3 -> editorial region grouping (presentation only, not a Eurostat field)
+const REGIONS={
+  FIN:'Nordic',SWE:'Nordic',DNK:'Nordic',NOR:'Nordic',ISL:'Nordic',
+  EST:'Baltic',LVA:'Baltic',LTU:'Baltic',
+  DEU:'Western',FRA:'Western',NLD:'Western',BEL:'Western',LUX:'Western',IRL:'Western',AUT:'Western',CHE:'Western',GBR:'Western',
+  POL:'Central & East',CZE:'Central & East',SVK:'Central & East',HUN:'Central & East',SVN:'Central & East',HRV:'Central & East',ROU:'Central & East',BGR:'Central & East',SRB:'Central & East',MNE:'Central & East',MKD:'Central & East',
+  ITA:'Southern',ESP:'Southern',GRC:'Southern',PRT:'Southern',MLT:'Southern',CYP:'Southern',TUR:'Southern',ALB:'Southern'
+};
+
+// tado indoor temperature, full appendix (Feb 2026). t = avg indoor degC, p = heating premium vs 18C.
+const TADO=[
+  {name:'Hungary',iso:'HUN',t:20.17,p:15.19},{name:'Slovakia',iso:'SVK',t:20.08,p:14.56},
+  {name:'Denmark',iso:'DNK',t:20.00,p:14.00},{name:'Finland',iso:'FIN',t:20.00,p:14.00},
+  {name:'Bulgaria',iso:'BGR',t:20.00,p:14.00},{name:'Latvia',iso:'LVA',t:19.97,p:13.79},
+  {name:'Romania',iso:'ROU',t:19.88,p:13.16},{name:'Sweden',iso:'SWE',t:19.88,p:13.16},
+  {name:'Norway',iso:'NOR',t:19.81,p:12.67},{name:'Slovenia',iso:'SVN',t:19.71,p:11.97},
+  {name:'Croatia',iso:'HRV',t:19.69,p:11.83},{name:'Switzerland',iso:'CHE',t:19.68,p:11.76},
+  {name:'Poland',iso:'POL',t:19.67,p:11.69},{name:'Czechia',iso:'CZE',t:19.59,p:11.13},
+  {name:'Austria',iso:'AUT',t:19.55,p:10.85},{name:'Greece',iso:'GRC',t:19.25,p:8.75},
+  {name:'Luxembourg',iso:'LUX',t:19.07,p:7.49},{name:'Germany',iso:'DEU',t:19.03,p:7.21},
+  {name:'Portugal',iso:'PRT',t:19.00,p:7.00},{name:'Spain',iso:'ESP',t:18.75,p:5.25},
+  {name:'France',iso:'FRA',t:18.65,p:4.55},{name:'Italy',iso:'ITA',t:18.59,p:4.13},
+  {name:'Belgium',iso:'BEL',t:17.73,p:-1.89},{name:'Ireland',iso:'IRL',t:17.39,p:-4.27},
+  {name:'Netherlands',iso:'NLD',t:16.91,p:-7.63},{name:'United Kingdom',iso:'GBR',t:16.72,p:-8.96},
+];
+
+// Fallback sample (used only until data/thermal_data.json is generated by the pull).
+const SAMPLE=[
+  {name:'Finland',iso:'FIN',d:2.7,hdd:5277,gdp:42},{name:'Estonia',iso:'EST',d:3.6,hdd:4118,gdp:30},
+  {name:'Lithuania',iso:'LTU',d:18.0,hdd:3900,gdp:33},{name:'Poland',iso:'POL',d:3.3,hdd:3300,gdp:34},
+  {name:'Slovenia',iso:'SVN',d:3.3,hdd:3000,gdp:35},{name:'Bulgaria',iso:'BGR',d:19.0,hdd:2700,gdp:22},
+  {name:'Germany',iso:'DEU',d:6.3,hdd:2900,gdp:45},{name:'Netherlands',iso:'NLD',d:7.1,hdd:2700,gdp:48},
+  {name:'Luxembourg',iso:'LUX',d:3.6,hdd:2900,gdp:85},{name:'France',iso:'FRA',d:11.8,hdd:2400,gdp:40},
+  {name:'Italy',iso:'ITA',d:8.6,hdd:2000,gdp:38},{name:'Spain',iso:'ESP',d:17.5,hdd:1800,gdp:33},
+  {name:'Greece',iso:'GRC',d:19.0,hdd:1700,gdp:26},{name:'Portugal',iso:'PRT',d:15.7,hdd:968,gdp:30},
+];
+
+const CONT=[
+  {label:'European Union',color:'#006BA2',headline:9.2,headlineLabel:'Unable to keep home adequately warm (EU-SILC, 2024)',matched:9.2,matchedLabel:'same metric',lo:2.7,hi:19.0,loName:'Finland',hiName:'Greece / Bulgaria'},
+  {label:'United States',color:'#E3120B',headline:27.2,headlineLabel:'Any energy insecurity (RECS 2020; ~33% by 2024)',matched:9.9,matchedLabel:'Kept home at an unsafe temperature',lo:14.7,hi:40.4,loName:'Vermont',hiName:'Mississippi'},
+  {label:'Canada',color:'#379A8B',headline:5.6,headlineLabel:'Energy poverty: >10% of after-tax income on energy (Census 2021)',matched:24.0,matchedLabel:'Not satisfied keeping warm in winter (Housing Survey)',lo:3.7,hi:13.7,loName:'Nunavut',hiName:'Atlantic provinces'},
+];
+
+const MAP_META={
+  warm:{title:'Where Europe cannot keep warm',
+    dek:'Share of people unable to keep their home adequately warm. Grey countries do not report for the selected year.',
+    source:'Source: Eurostat (ilc_mdes01).',
+    insight:'Read the colour, not the latitude. The Mediterranean rim runs dark while the cold Nordic and Baltic north stays pale. Bulgaria and Greece land darkest because low income and old housing decide who can keep warm, not the climate.'},
+  tado:{title:'Where Europe keeps its homes warm',
+    dek:'Average indoor temperature in smart-thermostat homes, winter 2025-26. Deeper orange means a warmer home and a larger heating bill against the WHO 18\u00b0C benchmark.',
+    source:'Source: tado\u00b0 \u201cThe Cost of Comfort\u201d appendix, Feb 2026. Smart-thermostat homes only, which skew affluent.',
+    insight:'Now flip the metric. The same Mediterranean countries that were darkest for hardship glow warm here: Greece, Spain and Portugal all sit near or above 19\u00b0C. The catch is that tado only sees the minority who own a smart thermostat. Warmth for them is not warmth for everyone, which is the whole gap.'}
+};
+
+const VIEW={
+  scatter:{title:'Cold climates, warm homes',
+    dek:'Heating degree days against the share unable to keep warm. Bubble size shows GDP per capita. The dashed line is what intuition predicts.',
+    source:'Source: Eurostat (ilc_mdes01, nrg_chdd_a, nama_10_pc).', focus:true},
+  compare:{title:'Three countries, three rulers',
+    dek:'Why the headline numbers do not line up. Solid dot is each country\u2019s headline figure; hollow dot is the measure closest to the EU question. The bar spans the lowest to highest region.',
+    source:'Source: Eurostat; EIA RECS 2020 and 2024; Statistics Canada.', focus:false},
+  divergence:{title:'Warm for whom?',
+    dek:'Indoor temperature in smart-thermostat homes against the share of the whole population unable to keep warm. The two diverge most where comfort is a luxury.',
+    source:'Source: tado\u00b0 appendix (Feb 2026, smart-thermostat homes, an affluent subset) and Eurostat ilc_mdes01.', focus:true},
+};
+
+const INSIGHT={
+  scatter:'The points slope down to the right, the opposite of the intuition that colder countries struggle more. Bubble size is income, and it tracks the vertical axis more closely than the horizontal one. Finland is the coldest country and the most comfortable. Greece, Spain and Bulgaria are the mildest and the least.',
+  compare:'The headline gap is mostly an illusion of three different survey questions. Match the question and it shrinks: the US unsafe-temperature figure sits near the EU number, and Canada\u2019s winter-comfort dissatisfaction is the highest of the three. And the coldest place in each country, Finland, Vermont and Nunavut, is the least affected.',
+  divergence:'Finland and Bulgaria heat their measured homes to the same 20\u00b0C, yet only a few percent of Finns and roughly a fifth of Bulgarians cannot keep warm. Greece, Spain and Portugal join Bulgaria in the shaded corner: warm thermostats, cold populations. The smart-thermostat data only sees the affluent minority, so the higher a country sits, the wider the gap between the comfort of the connected few and the cold of everyone else.'
+};
+
+// ---- data model ----
+let MODEL={real:false, year:2024, years:[2024], byIso:{}};
+let cur='map', mapMetric='warm', focusCountry='';
+
+const $=id=>document.getElementById(id);
+const card=$('card'), legend=$('legend');
+
+function valAt(series, y){
+  if(series && series[y]!=null) return series[y];
+  const ks=Object.keys(series||{}).map(Number).sort((a,b)=>a-b);
+  return ks.length? series[ks[ks.length-1]] : null;
+}
+function points(){
+  return Object.values(MODEL.byIso).map(c=>({
+    name:c.name, iso:c.iso3, region:c.region,
+    d:valAt(c.warm,MODEL.year), hdd:valAt(c.hdd,MODEL.year), gdp:valAt(c.gdp,MODEL.year)
+  })).filter(p=>p.d!=null && p.hdd!=null);
+}
+function warmMapData(){
+  return Object.values(MODEL.byIso).map(c=>({name:c.name, iso:c.iso3, d:valAt(c.warm,MODEL.year)}))
+    .filter(p=>p.d!=null);
+}
+function divPoints(){
+  return TADO.map(t=>{
+    const c=MODEL.byIso[t.iso]; if(!c) return null;
+    const ekw=valAt(c.warm,MODEL.year); if(ekw==null) return null;
+    return {name:t.name, region:REGIONS[t.iso]||'Western', tado:t.t, ekw};
+  }).filter(Boolean);
+}
+const ringTrace=(x,y)=>({type:'scatter',mode:'markers',x:[x],y:[y],hoverinfo:'skip',showlegend:false,
+  marker:{size:24,color:'rgba(0,0,0,0)',line:{color:'#E3120B',width:2.5}}});
+
+function drawMap(metric){
+  let trace;
+  if(metric==='tado'){
+    trace={type:'choropleth',locationmode:'ISO-3',locations:TADO.map(c=>c.iso),z:TADO.map(c=>c.t),
+      text:TADO.map(c=>c.name),customdata:TADO.map(c=>c.p),
+      hovertemplate:'<b>%{text}</b><br>Indoor temp: %{z:.2f}\u00b0C<br>Heating premium vs 18\u00b0C: %{customdata}%<extra></extra>',
+      colorscale:[[0,'#f7d84a'],[0.5,'#f0901f'],[1,'#cf3b1c']],zmin:16.5,zmax:20.2,
+      marker:{line:{color:'#fff',width:0.8}},
+      colorbar:{title:{text:'\u00b0C',font:{size:11}},thickness:12,len:0.62,x:0.97,tickfont:{size:10}}};
+  } else {
+    const d=warmMapData();
+    trace={type:'choropleth',locationmode:'ISO-3',locations:d.map(c=>c.iso),z:d.map(c=>c.d),text:d.map(c=>c.name),
+      hovertemplate:'<b>%{text}</b><br>Unable to keep warm: %{z}%<extra></extra>',
+      colorscale:[[0,'#eef0e9'],[0.5,'#e8896a'],[1,'#c1110b']],zmin:0,zmax:20,
+      marker:{line:{color:'#fff',width:0.8}},
+      colorbar:{title:{text:'%',font:{size:11}},thickness:12,len:0.62,x:0.97,tickfont:{size:10}}};
+  }
+  const layout={paper_bgcolor:PAPER,font:FONT,margin:{t:6,b:0,l:0,r:0},height:510,
+    geo:{scope:'europe',resolution:50,showcountries:true,countrycolor:'#fff',showframe:false,
+      showcoastlines:false,showland:true,landcolor:'#e7ebec',bgcolor:PANEL,
+      lonaxis:{range:[-11,30]},lataxis:{range:[34,71]}}};
+  Plotly.newPlot('plot',[trace],layout,{displayModeBar:false,responsive:true});
+}
+
+function drawScatter(){
+  const pts=points();
+  if(!pts.length){ Plotly.newPlot('plot',[],{paper_bgcolor:PAPER,height:510},{displayModeBar:false}); return; }
+  const maxd=Math.max(...pts.map(p=>p.d));
+  const regions=[...new Set(pts.map(p=>p.region))];
+  const traces=regions.map(r=>{
+    const items=pts.filter(p=>p.region===r);
+    return {type:'scatter',mode:'markers+text',name:r,
+      x:items.map(p=>p.hdd),y:items.map(p=>p.d),
+      text:items.map(p=>(p.d>=8||p.iso==='FIN')?p.name:''),
+      textposition:'top center',textfont:{size:10,color:'#3c4750'},
+      customdata:items.map(p=>[p.gdp,p.name]),
+      hovertemplate:'<b>%{customdata[1]}</b><br>Heating degree days: %{x}<br>Unable to keep warm: %{y}%<br>GDP/capita: EUR %{customdata[0]}k<extra>'+r+'</extra>',
+      marker:{size:items.map(p=>Math.sqrt(Math.max(p.gdp,1))*4.2),color:REGION_COLOR[r],line:{color:'#fff',width:1.4},sizemode:'diameter'}};
+  });
+  const fin=pts.find(p=>p.iso==='FIN');
+  let worst=pts[0]; pts.forEach(p=>{ if(p.d>worst.d) worst=p; });
+  const ann=[{x:5900,y:Math.min(maxd,20)*0.99,text:'what intuition predicts',showarrow:false,font:{size:10.5,color:'#90a0a7'},xanchor:'right'}];
+  if(fin) ann.push({x:fin.hdd,y:fin.d,ax:-8,ay:-42,text:'<b>Finland</b>',font:{size:11,color:'#1A476F'},arrowcolor:'#1A476F',arrowwidth:1.3});
+  if(worst) ann.push({x:worst.hdd,y:worst.d,ax:worst.hdd>3000?-60:60,ay:8,text:'<b>'+worst.name+'</b>',font:{size:11,color:'#E3120B'},arrowcolor:'#E3120B',arrowwidth:1.3});
+  const layout={paper_bgcolor:PAPER,plot_bgcolor:PANEL,font:FONT,height:510,margin:{t:14,b:52,l:58,r:18},showlegend:false,
+    xaxis:{title:{text:'Heating degree days (colder country to the right)',font:{size:12.5}},range:[200,6200],showgrid:false,showline:true,linecolor:'#9fb0b8',zeroline:false},
+    yaxis:{title:{text:'% unable to keep home adequately warm',font:{size:12.5}},range:[0,Math.max(22,maxd+2)],gridcolor:GRID,zeroline:false,showline:false},
+    shapes:[{type:'line',x0:1000,y0:Math.min(maxd,20),x1:6000,y1:1,line:{color:'#a9b7bd',width:1.5,dash:'dash'}}],
+    annotations:ann};
+  if(focusCountry){ const p=pts.find(x=>x.name===focusCountry); if(p) traces.push(ringTrace(p.hdd,p.d)); }
+  Plotly.newPlot('plot',traces,layout,{displayModeBar:false,responsive:true});
+}
+
+function drawCompare(){
+  const ys=[2,1,0];const traces=[];
+  CONT.forEach((c,i)=>{const y=ys[i];
+    traces.push({type:'scatter',mode:'lines',x:[c.lo,c.hi],y:[y,y],line:{color:c.color,width:11},opacity:0.20,hoverinfo:'skip',showlegend:false});
+    traces.push({type:'scatter',mode:'markers+text',x:[c.lo,c.hi],y:[y,y],marker:{color:c.color,size:7,opacity:0.65},
+      text:[c.loName+'  '+c.lo+'%',c.hiName+'  '+c.hi+'%'],textposition:'top center',textfont:{size:10.5,color:'#7a8893'},hoverinfo:'skip',showlegend:false});
+    traces.push({type:'scatter',mode:'markers',x:[c.headline],y:[y],marker:{color:c.color,size:19,line:{color:'#fff',width:2.5}},
+      hovertemplate:'<b>'+c.label+'</b><br>Headline: '+c.headline+'%<br>'+c.headlineLabel+'<extra></extra>',showlegend:false});
+    if(Math.abs(c.matched-c.headline)>0.5){
+      traces.push({type:'scatter',mode:'markers',x:[c.matched],y:[y],marker:{color:'#fff',size:15,line:{color:c.color,width:3}},
+        hovertemplate:'<b>'+c.label+'</b><br>Closest match to EU question: '+c.matched+'%<br>'+c.matchedLabel+'<extra></extra>',showlegend:false});
+    }
+  });
+  const layout={paper_bgcolor:PAPER,plot_bgcolor:PANEL,font:FONT,height:430,margin:{t:22,b:48,l:132,r:30},
+    xaxis:{title:{text:'% of households',font:{size:12.5}},range:[0,46],gridcolor:GRID,zeroline:false,showline:true,linecolor:'#9fb0b8'},
+    yaxis:{tickvals:[2,1,0],ticktext:['European Union','United States','Canada'],range:[-0.6,2.65],tickfont:{size:14},showgrid:false},showlegend:false};
+  Plotly.newPlot('plot',traces,layout,{displayModeBar:false,responsive:true});
+}
+
+function drawDivergence(){
+  const pts=divPoints();
+  if(!pts.length){ Plotly.newPlot('plot',[],{paper_bgcolor:PAPER,height:510},{displayModeBar:false}); return; }
+  const trace={type:'scatter',mode:'markers+text',x:pts.map(p=>p.tado),y:pts.map(p=>p.ekw),
+    text:pts.map(p=>(p.ekw>=8||p.name==='Finland'||p.name==='Netherlands')?p.name:''),
+    textposition:'top center',textfont:{size:10,color:'#3c4750'},customdata:pts.map(p=>p.name),
+    marker:{size:13,color:pts.map(p=>REGION_COLOR[p.region]||'#006BA2'),line:{color:'#fff',width:1.5}},
+    hovertemplate:'<b>%{customdata}</b><br>Smart-home indoor temp: %{x:.2f}\u00b0C<br>Population unable to keep warm: %{y}%<extra></extra>',showlegend:false};
+  const traces=[trace];
+  const layout={paper_bgcolor:PAPER,plot_bgcolor:PANEL,font:FONT,height:510,margin:{t:16,b:54,l:58,r:22},showlegend:false,
+    xaxis:{title:{text:'Indoor temperature in smart-thermostat homes (\u00b0C)',font:{size:12.5}},range:[16.4,20.7],dtick:1,showgrid:false,showline:true,linecolor:'#9fb0b8',zeroline:false},
+    yaxis:{title:{text:'% of population unable to keep home warm',font:{size:12.5}},range:[-1.6,21.5],gridcolor:GRID,zeroline:false,showline:false},
+    shapes:[
+      {type:'rect',x0:18.45,x1:20.7,y0:13,y1:21.5,fillcolor:'rgba(227,18,11,0.06)',line:{width:0}},
+      {type:'line',x0:18,x1:18,y0:-1.6,y1:21.5,line:{color:'#E3120B',width:1.5,dash:'dot'}},
+      {type:'line',x0:16.6,x1:20.5,y0:18,y1:1,line:{color:'#a9b7bd',width:1.5,dash:'dash'}}
+    ],
+    annotations:[
+      {x:18,y:21.5,yanchor:'bottom',text:'WHO 18\u00b0C benchmark',showarrow:false,font:{size:10.5,color:'#E3120B'},xanchor:'center'},
+      {x:19.55,y:20.6,text:'Warm thermostats, cold populations',showarrow:false,font:{size:11,color:'#b3140e'},xanchor:'center'},
+      {x:16.45,y:19.4,text:'expected:<br>warmer homes,<br>fewer left cold',showarrow:false,font:{size:10,color:'#90a0a7'},xanchor:'left',align:'left'}
+    ]};
+  if(focusCountry){ const p=pts.find(x=>x.name===focusCountry); if(p) traces.push(ringTrace(p.tado,p.ekw)); }
+  Plotly.newPlot('plot',traces,layout,{displayModeBar:false,responsive:true});
+}
+
+function setLegend(){
+  if(cur==='map'){
+    legend.innerHTML = mapMetric==='tado'
+      ? '<span style="color:#90a0a7">Deeper orange: warmer indoor temperature (tado, affluent homes)</span>'
+      : '<span style="color:#90a0a7">Darker red: larger share unable to keep warm (Eurostat)</span>';
+  } else if(cur==='scatter'){
+    legend.innerHTML=Object.keys(REGION_COLOR).map(r=>`<span><i style="background:${REGION_COLOR[r]}"></i>${r}</span>`).join('')
+      +'<span style="color:#90a0a7">Bubble size: GDP per capita</span>';
+  } else if(cur==='divergence'){
+    const rs=[...new Set(divPoints().map(p=>p.region))];
+    legend.innerHTML=rs.map(r=>`<span><i style="background:${REGION_COLOR[r]}"></i>${r}</span>`).join('')
+      +'<span style="color:#90a0a7">Dotted red line: WHO 18\u00b0C benchmark</span>';
+  } else {
+    legend.innerHTML='<span><i style="background:#006BA2"></i>EU</span><span><i style="background:#E3120B"></i>US</span><span><i style="background:#379A8B"></i>Canada</span>'
+      +'<span style="color:#90a0a7">Solid: headline figure&nbsp;&nbsp;Hollow: closest match to EU question</span>';
+  }
+}
+
+function render(){
+  if(cur==='map')drawMap(mapMetric);
+  else if(cur==='scatter')drawScatter();
+  else if(cur==='compare')drawCompare();
+  else drawDivergence();
+}
+
+function setHead(m){ $('ctitle').textContent=m.title; $('cdek').textContent=m.dek; $('source').textContent=m.source; $('insight').innerHTML=m.insight; }
+function setTexts(){
+  if(cur==='map'){ setHead(MAP_META[mapMetric]);
+    document.querySelectorAll('#metricpills button').forEach(b=>b.classList.toggle('on',b.dataset.m===mapMetric)); }
+  else { const m=VIEW[cur]; $('ctitle').textContent=m.title; $('cdek').textContent=m.dek; $('source').textContent=m.source; $('insight').innerHTML=INSIGHT[cur]; }
+}
+function syncContext(){
+  $('metricpills').style.display = cur==='map'?'flex':'none';
+  $('focusWrap').style.display = (cur==='scatter'||cur==='divergence')?'flex':'none';
+  const showSlider = MODEL.real && MODEL.years.length>1 && ((cur==='map'&&mapMetric==='warm')||cur==='scatter');
+  $('sliderWrap').style.display = showSlider?'flex':'none';
+}
+
+function setView(v){
+  cur=v;
+  document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on',b.dataset.view===v));
+  setTexts(); syncContext(); setLegend();
+  card.style.opacity='0.35';
+  requestAnimationFrame(()=>{ render(); card.style.opacity='1'; });
+}
+
+// ---- load real data, fall back to sample ----
+function applySampleModel(){
+  MODEL.byIso={};
+  SAMPLE.forEach(c=>{ MODEL.byIso[c.iso]={name:c.name,iso3:c.iso,region:REGIONS[c.iso]||'Western',
+    warm:{2024:c.d}, hdd:{2024:c.hdd}, gdp:{2024:c.gdp}}; });
+  MODEL.years=[2024]; MODEL.year=2024; MODEL.real=false;
+}
+function applyRealModel(j){
+  MODEL.byIso={}; const yset=new Set();
+  for(const geo in j.countries){
+    const c=j.countries[geo]; const iso=c.iso3; if(!iso) continue;
+    MODEL.byIso[iso]={name:c.name,iso3:iso,region:REGIONS[iso]||'Western',
+      warm:c.warm||{}, hdd:c.hdd||{}, gdp:c.gdp||{}};
+    Object.keys(c.warm||{}).forEach(y=>yset.add(+y));
+  }
+  MODEL.years=[...yset].sort((a,b)=>a-b);
+  MODEL.year=MODEL.years.length?MODEL.years[MODEL.years.length-1]:2024;
+  MODEL.real=true;
+}
+function setupSlider(){
+  const s=$('yearSlider');
+  if(MODEL.years.length>1){
+    s.min=MODEL.years[0]; s.max=MODEL.years[MODEL.years.length-1]; s.step=1; s.value=MODEL.year;
+    $('yearLabel').textContent=MODEL.year;
+  }
+}
+function showStatus(){
+  if(!MODEL.real){
+    $('dataline').style.display='block';
+    $('dataline').textContent='Showing sample data. Run scripts/eurostat_pull.py to generate data/thermal_data.json, then reload for the full Eurostat series and the year slider.';
+  } else { $('dataline').style.display='none'; }
+}
+
+async function boot(){
+  try{
+    const r=await fetch('data/thermal_data.json',{cache:'no-store'});
+    if(!r.ok) throw new Error('no data file');
+    applyRealModel(await r.json());
+  }catch(e){ applySampleModel(); }
+  showStatus(); setupSlider();
+  // populate country highlight from whatever model loaded
+  const sel=$('focus');
+  Object.values(MODEL.byIso).map(c=>c.name).sort().forEach(n=>{
+    const o=document.createElement('option'); o.value=n; o.textContent=n; sel.appendChild(o);
+  });
+  setView('map');
+}
+
+$('tabs').addEventListener('click',e=>{ if(e.target.dataset.view) setView(e.target.dataset.view); });
+$('metricpills').addEventListener('click',e=>{ if(e.target.dataset.m){ mapMetric=e.target.dataset.m; setTexts(); syncContext(); setLegend(); render(); } });
+$('focus').addEventListener('change',e=>{ focusCountry=e.target.value; render(); });
+$('yearSlider').addEventListener('input',e=>{ MODEL.year=+e.target.value; $('yearLabel').textContent=MODEL.year; render(); });
+window.addEventListener('resize',()=>Plotly.Plots.resize('plot'));
+
+boot();
+</script>
+</body>
+</html>

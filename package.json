@@ -1,0 +1,14 @@
+{
+  "name": "warmth-gap",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Interactive map of winter indoor comfort and energy hardship across the EU, US and Canada.",
+  "scripts": {
+    "data": "python3 scripts/eurostat_pull.py",
+    "dev": "python3 -m http.server 8000 --directory public",
+    "deploy": "wrangler pages deploy public --project-name=warmth-gap"
+  },
+  "devDependencies": {
+    "wrangler": "^3"
+  }
+}
