@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>The Warmth Gap — winter comfort across the EU, US and Canada</title>
+<title>The Warmth Gap: winter comfort across the EU, US and Canada</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.27.0/plotly.min.js"></script>
 <style>
   :root{
@@ -67,16 +67,16 @@
     <div class="tab"></div>
     <div class="eyebrow">Thermal comfort &middot; EU &middot; US &middot; Canada</div>
     <h1>The warmth gap</h1>
-    <p class="dek">Across three continents, the warmest climates hold some of the coldest homes. Latitude does not decide who stays warm. Income, building stock and fuel do.</p>
+    <p class="dek">An interactive look at how warm people keep their homes in winter across the EU, US and Canada, and who can afford to. The pattern that keeps showing up: the mildest climates hold some of the coldest homes, because income, building stock and fuel decide who stays warm, not latitude.</p>
   </header>
 
   <div class="dataline" id="dataline"></div>
 
   <nav class="controls">
     <div class="tabs" id="tabs">
-      <button data-view="map" class="on">Maps</button>
-      <button data-view="scatter">Climate vs comfort</button>
-      <button data-view="compare">Three countries</button>
+      <button data-view="map" class="on">Who stays warm</button>
+      <button data-view="scatter">Is climate to blame?</button>
+      <button data-view="compare">EU vs US vs Canada</button>
       <button data-view="divergence">Warm for whom?</button>
     </div>
     <label class="focus" id="focusWrap">Highlight
@@ -162,7 +162,7 @@ const MAP_META={
     dek:'Share of people unable to keep their home adequately warm. Grey countries do not report for the selected year.',
     source:'Source: Eurostat (ilc_mdes01).',
     insight:'Read the colour, not the latitude. The Mediterranean rim runs dark while the cold Nordic and Baltic north stays pale. Bulgaria and Greece land darkest because low income and old housing decide who can keep warm, not the climate.'},
-  tado:{title:'Where Europe keeps its homes warm',
+  tado:{title:'Where Europe keeps homes warmest',
     dek:'Average indoor temperature in smart-thermostat homes, winter 2025-26. Deeper orange means a warmer home and a larger heating bill against the WHO 18\u00b0C benchmark.',
     source:'Source: tado\u00b0 \u201cThe Cost of Comfort\u201d appendix, Feb 2026. Smart-thermostat homes only, which skew affluent.',
     insight:'Now flip the metric. The same Mediterranean countries that were darkest for hardship glow warm here: Greece, Spain and Portugal all sit near or above 19\u00b0C. The catch is that tado only sees the minority who own a smart thermostat. Warmth for them is not warmth for everyone, which is the whole gap.'}
@@ -172,8 +172,8 @@ const VIEW={
   scatter:{title:'Cold climates, warm homes',
     dek:'Heating degree days against the share unable to keep warm. Bubble size shows GDP per capita. The dashed line is what intuition predicts.',
     source:'Source: Eurostat (ilc_mdes01, nrg_chdd_a, nama_10_pc).', focus:true},
-  compare:{title:'Three countries, three rulers',
-    dek:'Why the headline numbers do not line up. Solid dot is each country\u2019s headline figure; hollow dot is the measure closest to the EU question. The bar spans the lowest to highest region.',
+  compare:{title:'Three rulers, not one',
+    dek:'Why the headline numbers do not line up. Solid dot is each country\u2019s headline figure; hollow dot is the measure closest to the EU question. The faint band marks only the lowest and highest reporting region, not a full distribution.',
     source:'Source: Eurostat; EIA RECS 2020 and 2024; Statistics Canada.', focus:false},
   divergence:{title:'Warm for whom?',
     dek:'Indoor temperature in smart-thermostat homes against the share of the whole population unable to keep warm. The two diverge most where comfort is a luxury.',
@@ -218,6 +218,15 @@ function divPoints(){
 const ringTrace=(x,y)=>({type:'scatter',mode:'markers',x:[x],y:[y],hoverinfo:'skip',showlegend:false,
   marker:{size:24,color:'rgba(0,0,0,0)',line:{color:'#E3120B',width:2.5}}});
 
+// Plotly geo preserves the map's aspect ratio, so a short fixed height leaves
+// the choropleth narrow and centred on wide screens. Size the height from the
+// card width instead, clamped so it fills the card on desktop and is unchanged
+// on mobile (the clamp floor matches the prior mobile height).
+function mapHeight(){
+  const w=$('plot').clientWidth||card.clientWidth||700;
+  return Math.min(Math.max(Math.round(w*0.7),460),820);
+}
+
 function drawMap(metric){
   let trace;
   if(metric==='tado'){
@@ -235,7 +244,7 @@ function drawMap(metric){
       marker:{line:{color:'#fff',width:0.8}},
       colorbar:{title:{text:'%',font:{size:11}},thickness:12,len:0.62,x:0.97,tickfont:{size:10}}};
   }
-  const layout={paper_bgcolor:PAPER,font:FONT,margin:{t:6,b:0,l:0,r:0},height:510,
+  const layout={paper_bgcolor:PAPER,font:FONT,margin:{t:6,b:0,l:0,r:0},height:mapHeight(),
     geo:{scope:'europe',resolution:50,showcountries:true,countrycolor:'#fff',showframe:false,
       showcoastlines:false,showland:true,landcolor:'#e7ebec',bgcolor:PANEL,
       lonaxis:{range:[-11,30]},lataxis:{range:[34,71]}}};
@@ -246,6 +255,12 @@ function drawScatter(){
   const pts=points();
   if(!pts.length){ Plotly.newPlot('plot',[],{paper_bgcolor:PAPER,height:510},{displayModeBar:false}); return; }
   const maxd=Math.max(...pts.map(p=>p.d));
+  // Bubble size is min-max normalised across all plotted points to a pixel
+  // range of about 9 to 35. Live gdp is GDP per capita in absolute euros, so a
+  // raw scale would oversize every marker; normalising keeps them comparable.
+  const gvals=pts.map(p=>p.gdp).filter(g=>g!=null);
+  const gmin=Math.min(...gvals), gmax=Math.max(...gvals);
+  const bubbleSize=g=>(g==null)?9:9+26*Math.sqrt((g-gmin)/Math.max(gmax-gmin,1));
   const regions=[...new Set(pts.map(p=>p.region))];
   const traces=regions.map(r=>{
     const items=pts.filter(p=>p.region===r);
@@ -254,8 +269,8 @@ function drawScatter(){
       text:items.map(p=>(p.d>=8||p.iso==='FIN')?p.name:''),
       textposition:'top center',textfont:{size:10,color:'#3c4750'},
       customdata:items.map(p=>[p.gdp,p.name]),
-      hovertemplate:'<b>%{customdata[1]}</b><br>Heating degree days: %{x}<br>Unable to keep warm: %{y}%<br>GDP/capita: EUR %{customdata[0]}k<extra>'+r+'</extra>',
-      marker:{size:items.map(p=>Math.sqrt(Math.max(p.gdp,1))*4.2),color:REGION_COLOR[r],line:{color:'#fff',width:1.4},sizemode:'diameter'}};
+      hovertemplate:'<b>%{customdata[1]}</b><br>Heating degree days: %{x}<br>Unable to keep warm: %{y}%<br>GDP/capita: EUR %{customdata[0]}<extra>'+r+'</extra>',
+      marker:{size:items.map(p=>bubbleSize(p.gdp)),color:REGION_COLOR[r],line:{color:'#fff',width:1.4},sizemode:'diameter'}};
   });
   const fin=pts.find(p=>p.iso==='FIN');
   let worst=pts[0]; pts.forEach(p=>{ if(p.d>worst.d) worst=p; });
@@ -274,9 +289,16 @@ function drawScatter(){
 function drawCompare(){
   const ys=[2,1,0];const traces=[];
   CONT.forEach((c,i)=>{const y=ys[i];
-    traces.push({type:'scatter',mode:'lines',x:[c.lo,c.hi],y:[y,y],line:{color:c.color,width:11},opacity:0.20,hoverinfo:'skip',showlegend:false});
-    traces.push({type:'scatter',mode:'markers+text',x:[c.lo,c.hi],y:[y,y],marker:{color:c.color,size:7,opacity:0.65},
-      text:[c.loName+'  '+c.lo+'%',c.hiName+'  '+c.hi+'%'],textposition:'top center',textfont:{size:10.5,color:'#7a8893'},hoverinfo:'skip',showlegend:false});
+    // Faint band from lowest to highest reporting region. The lo/hi names and
+    // values now live in the band hover instead of crowded endpoint labels.
+    traces.push({type:'scatter',mode:'lines',x:[c.lo,c.hi],y:[y,y],line:{color:c.color,width:11},opacity:0.20,
+      hovertemplate:'<b>'+c.label+'</b><br>Lowest region: '+c.loName+' '+c.lo+'%<br>Highest region: '+c.hiName+' '+c.hi+'%<extra>regional spread</extra>',showlegend:false});
+    // Faint endpoint ticks, no text, so the band reads as a span not a blank bar.
+    traces.push({type:'scatter',mode:'markers',x:[c.lo,c.hi],y:[y,y],marker:{color:c.color,size:7,opacity:0.55},hoverinfo:'skip',showlegend:false});
+    // Thin connector between the two measures where they differ: this gap is the point.
+    if(Math.abs(c.matched-c.headline)>0.5){
+      traces.push({type:'scatter',mode:'lines',x:[c.headline,c.matched],y:[y,y],line:{color:c.color,width:2.5},opacity:0.6,hoverinfo:'skip',showlegend:false});
+    }
     traces.push({type:'scatter',mode:'markers',x:[c.headline],y:[y],marker:{color:c.color,size:19,line:{color:'#fff',width:2.5}},
       hovertemplate:'<b>'+c.label+'</b><br>Headline: '+c.headline+'%<br>'+c.headlineLabel+'<extra></extra>',showlegend:false});
     if(Math.abs(c.matched-c.headline)>0.5){
@@ -293,13 +315,19 @@ function drawCompare(){
 function drawDivergence(){
   const pts=divPoints();
   if(!pts.length){ Plotly.newPlot('plot',[],{paper_bgcolor:PAPER,height:510},{displayModeBar:false}); return; }
+  // Per-point label placement so no two visible labels collide. Finland in
+  // particular is moved off the warm-and-secure pile to its lower right.
+  const LABELPOS={Greece:'top center',Bulgaria:'top center',Spain:'middle left',Portugal:'bottom center',
+    Romania:'top center',France:'middle left',Italy:'bottom center',Slovakia:'middle right',
+    Netherlands:'top center',Finland:'middle right'};
+  const labeled=p=>(p.ekw>=8||p.name==='Finland'||p.name==='Netherlands');
   const trace={type:'scatter',mode:'markers+text',x:pts.map(p=>p.tado),y:pts.map(p=>p.ekw),
-    text:pts.map(p=>(p.ekw>=8||p.name==='Finland'||p.name==='Netherlands')?p.name:''),
-    textposition:'top center',textfont:{size:10,color:'#3c4750'},customdata:pts.map(p=>p.name),
-    marker:{size:13,color:pts.map(p=>REGION_COLOR[p.region]||'#006BA2'),line:{color:'#fff',width:1.5}},
+    text:pts.map(p=>labeled(p)?p.name:''),
+    textposition:pts.map(p=>LABELPOS[p.name]||'top center'),textfont:{size:10,color:'#3c4750'},customdata:pts.map(p=>p.name),
+    marker:{size:11,color:pts.map(p=>REGION_COLOR[p.region]||'#006BA2'),line:{color:'#fff',width:1.5}},
     hovertemplate:'<b>%{customdata}</b><br>Smart-home indoor temp: %{x:.2f}\u00b0C<br>Population unable to keep warm: %{y}%<extra></extra>',showlegend:false};
   const traces=[trace];
-  const layout={paper_bgcolor:PAPER,plot_bgcolor:PANEL,font:FONT,height:510,margin:{t:16,b:54,l:58,r:22},showlegend:false,
+  const layout={paper_bgcolor:PAPER,plot_bgcolor:PANEL,font:FONT,height:510,margin:{t:16,b:54,l:58,r:38},showlegend:false,
     xaxis:{title:{text:'Indoor temperature in smart-thermostat homes (\u00b0C)',font:{size:12.5}},range:[16.4,20.7],dtick:1,showgrid:false,showline:true,linecolor:'#9fb0b8',zeroline:false},
     yaxis:{title:{text:'% of population unable to keep home warm',font:{size:12.5}},range:[-1.6,21.5],gridcolor:GRID,zeroline:false,showline:false},
     shapes:[
@@ -414,7 +442,9 @@ $('tabs').addEventListener('click',e=>{ if(e.target.dataset.view) setView(e.targ
 $('metricpills').addEventListener('click',e=>{ if(e.target.dataset.m){ mapMetric=e.target.dataset.m; setTexts(); syncContext(); setLegend(); render(); } });
 $('focus').addEventListener('change',e=>{ focusCountry=e.target.value; render(); });
 $('yearSlider').addEventListener('input',e=>{ MODEL.year=+e.target.value; $('yearLabel').textContent=MODEL.year; render(); });
-window.addEventListener('resize',()=>Plotly.Plots.resize('plot'));
+// Re-render the map on resize so its height tracks the new card width; other
+// views just need Plotly to reflow to the container.
+window.addEventListener('resize',()=>{ if(cur==='map') drawMap(mapMetric); else Plotly.Plots.resize('plot'); });
 
 boot();
 </script>
