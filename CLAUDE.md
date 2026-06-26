@@ -40,4 +40,4 @@ The app keys countries by ISO-3. Region grouping (Nordic, Baltic, Western, Centr
 - tado data is smart-thermostat homes, an affluent subset. Never present it as a population average. The divergence between tado warmth and Eurostat hardship is the intended insight.
 - The EU, US and Canada hardship numbers use different definitions. Keep them on separate scales and labelled.
 - If porting maps off Plotly, use MapLibre with OpenFreeMap, not Mapbox.
-- Red (#E3120B) is the single accent, reserved for the corner tab, the active tab underline, the insight rule, and real-world benchmarks like the WHO 18 degree line. Charts use the Economist categorical palette.
+- Burnt orange (#C8521E), with darker shade #A8431B, is the single brand accent, reserved for the corner tab, the active tab underline, the insight rule, and real-world benchmarks like the WHO 18 degree line. Charts use the Economist categorical palette, where data reds (the Southern region #E3120B and the red-to-dark hardship choropleth scale) are data encodings, not brand, and stay as they are.

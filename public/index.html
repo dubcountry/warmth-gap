@@ -7,7 +7,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.27.0/plotly.min.js"></script>
 <style>
   :root{
-    --red:#E3120B; --ink:#121317; --blue:#006BA2; --cyan:#3EBCD2; --teal:#379A8B;
+    --red:#C8521E; --ink:#121317; --blue:#006BA2; --cyan:#3EBCD2; --teal:#379A8B;
     --gold:#EBB434; --darkblue:#1A476F; --grey:#6f8793; --grid:#c5d2d8;
     --panel:#dce7ec; --paper:#ffffff; --page:#eef1f2; --line:#d4dadd;
   }
@@ -50,6 +50,10 @@
   .legend i{width:10px; height:10px; display:inline-block;}
   .source{font-size:11px; color:var(--grey); margin:13px 0 2px; line-height:1.45;
     border-top:1px solid #eef0f1; padding-top:9px;}
+  /* tap readout: the mobile-friendly stand-in for the hover tooltip on the scatters */
+  .readout{font-size:13.5px; line-height:1.5; color:var(--ink); margin:10px 2px 0; min-height:1.3em;
+    border-left:3px solid var(--red); padding-left:12px;}
+  .readout:empty{border-left:0; padding-left:0; min-height:0;}
   .insight{font-size:14.5px; line-height:1.56; color:var(--ink); margin:18px 2px 0; max-width:780px;
     border-left:3px solid var(--red); padding-left:14px;}
   .foot{margin-top:34px;} .footrule{height:1px; background:var(--line); margin-bottom:12px;}
@@ -118,6 +122,10 @@
   <section class="chartcard" id="card">
     <h2 class="ctitle" id="ctitle"></h2>
     <p class="cdek" id="cdek"></p>
+    <div class="metricpills" id="geopills" style="display:none">
+      <button data-c="eu" class="on">Europe</button>
+      <button data-c="na">North America</button>
+    </div>
     <div class="metricpills" id="metricpills" style="display:none">
       <button data-m="warm" class="on">Cannot keep warm</button>
       <button data-m="tado">Indoor warmth</button>
@@ -127,6 +135,7 @@
     </div>
     <div id="plot"></div>
     <div id="compareHTML" style="display:none"></div>
+    <p class="readout" id="readout" style="display:none"></p>
     <div class="legend" id="legend"></div>
     <p class="source" id="source"></p>
   </section>
@@ -201,6 +210,26 @@ const CONT=[
   {label:'Canada',color:'#379A8B',headline:5.6,headlineLabel:'Energy poverty: >10% of after-tax income on energy (Census 2021)',matched:24.0,matchedLabel:'Not satisfied keeping warm in winter (Housing Survey)',lo:3.7,hi:13.7,loName:'Nunavut',hiName:'Atlantic provinces'},
 ];
 
+// US Census-region layer for the Europe / North America toggle on the hardship
+// map and the climate scatter. ins = RECS "any energy insecurity" share, a
+// BROADER measure than the EU "unable to keep warm", so it is kept on its own
+// scale and never read as identical. hddC = heating degree days on the Eurostat
+// Celsius base, approximated from the US Fahrenheit base-65 figures times 5/9
+// (F-base HDD approx NE 6000, MW 6500, S 2200, W 3200). All four are approximate.
+const US_COLOR='#7C5295';
+const US_REGIONS=[
+  {name:'Northeast', ins:23, hddC:3300},
+  {name:'Midwest',   ins:27, hddC:3600},
+  {name:'South',     ins:33, hddC:1200},
+  {name:'West',      ins:25, hddC:1800},
+];
+const US_MAP_META={title:'US energy insecurity by region',
+  dek:'Share of US households reporting any energy insecurity (RECS), by the four Census regions. This is a broader measure than the EU "unable to keep warm" and sits on its own scale, so do not read these colours as identical to the Europe map.',
+  source:'Source: EIA Residential Energy Consumption Survey (RECS), four US Census regions. Approximate.',
+  insight:'Even inside one country the mildest region, the South, reports the most energy insecurity, and the colder Northeast reports the least. As in Europe, who stays warm tracks income and housing, not just how cold it gets.'};
+const US_SCATTER_DEK='The four US Census regions on the same axes. The vertical axis here is energy insecurity (RECS), a broader measure than the EU unable-to-keep-warm, and the US heating degree days are approximate, converted from the Fahrenheit base. So these points are indicative, not a like-for-like overlay on the European countries.';
+const US_SCATTER_INSIGHT='The US pattern rhymes with Europe. The South is the mildest of the four regions yet reports the most energy insecurity, while the colder Northeast reports the least. Climate sets the heating need, but income and housing decide who actually stays warm.';
+
 const MAP_META={
   warm:{title:'Where Europe cannot keep warm',
     dek:'Share of people unable to keep their home adequately warm. Grey countries do not report for the selected year.',
@@ -214,7 +243,7 @@ const MAP_META={
 
 const VIEW={
   scatter:{title:'Cold climates, warm homes',
-    dek:'Heating degree days against the share unable to keep warm. Bubble size shows GDP per capita. The dashed line is what intuition predicts. Heating degree days add up how far each day falls below a comfort threshold over the year, so a high number means a long, cold heating season (Finland near 5000) and a low one means barely any (Cyprus near 600).',
+    dek:'Heating degree days against the share unable to keep warm. Bubble size shows GDP per capita. The dashed line is what intuition predicts. Heating degree days add up how far each day falls below a comfort threshold over the year, so a high number means a long, cold heating season (Finland near 5000) and a low one means barely any (Cyprus near 600). Values above 30 percent (mostly early years) are pinned to the top; tap them for the real figure.',
     source:'Source: Eurostat (ilc_mdes01, nrg_chdd_a, nama_10_pc).', focus:true},
   compare:{title:'Three places, three different questions',
     dek:'The headline shares look far apart, but each place is answering a different survey question. Match the question and they move much closer.',
@@ -232,7 +261,7 @@ const INSIGHT={
 
 // ---- data model ----
 let MODEL={real:false, year:2024, years:[2024], byIso:{}};
-let cur='map', mapMetric='warm', focusCountry='';
+let cur='map', mapMetric='warm', focusCountry='', continent='eu';
 
 const $=id=>document.getElementById(id);
 const card=$('card'), legend=$('legend');
@@ -260,7 +289,7 @@ function divPoints(){
   }).filter(Boolean);
 }
 const ringTrace=(x,y)=>({type:'scatter',mode:'markers',x:[x],y:[y],hoverinfo:'skip',showlegend:false,
-  marker:{size:24,color:'rgba(0,0,0,0)',line:{color:'#E3120B',width:2.5}}});
+  marker:{size:24,color:'rgba(0,0,0,0)',line:{color:'#C8521E',width:2.5}}});
 
 // Every chart goes through here so interactivity is uniform: no modebar, no
 // scroll/double-click zoom, no drag pan, and hover-only tooltips that never
@@ -269,6 +298,24 @@ const PLOT_CONFIG={displayModeBar:false, scrollZoom:false, doubleClick:false, re
 function plot(traces, layout){
   layout=Object.assign({hovermode:'closest', dragmode:false}, layout);
   return Plotly.newPlot('plot', traces, layout, PLOT_CONFIG);
+}
+
+// ---- tap readout: figures shown on tap, the touch stand-in for the hover ----
+function setReadout(html){ const el=$('readout'); if(el) el.innerHTML=html||''; }
+// All scatter traces carry the place name at customdata[1] (arrays) or as the
+// whole customdata (divergence strings), so one helper pulls the name on tap.
+const clickName=pt=>{ const c=pt.customdata; return Array.isArray(c)?c[1]:c; };
+function scatterReadoutFor(name){
+  if(continent==='na'){ const u=US_REGIONS.find(x=>x.name===name); if(!u) return '';
+    return '<b>'+u.name+'</b>: heating degree days about '+u.hddC+' (approx), '+u.ins+'% reporting energy insecurity (RECS).'; }
+  const p=points().find(x=>x.name===name); if(!p) return '';
+  return '<b>'+p.name+'</b>: heating degree days about '+Math.round(p.hdd)
+    +', '+round1(p.d)+'% unable to keep warm'
+    +(p.gdp!=null?', GDP per capita EUR '+Math.round(p.gdp).toLocaleString('en-US'):'')+'.';
+}
+function divReadoutFor(name){
+  const p=divPoints().find(x=>x.name===name); if(!p) return '';
+  return '<b>'+p.name+'</b>: smart-thermostat homes '+p.tado.toFixed(2)+'°C, '+round1(p.ekw)+'% of people unable to keep warm.';
 }
 
 // Plotly geo preserves the map's aspect ratio, so a short fixed height left the
@@ -281,7 +328,28 @@ function mapHeight(){
   return Math.min(Math.max(Math.round(w*0.62),460),760);
 }
 
+// US Census regions are not states, so a USA-states choropleth will not draw
+// them. A clean labelled horizontal bar on the same red hardship scale reads
+// clearly and keeps the "this is a different US measure" point obvious.
+function drawUSMapBar(){
+  const r=US_REGIONS;
+  const order=[...r].sort((a,b)=>a.ins-b.ins).map(d=>d.name); // highest ends up on top
+  const trace={type:'bar',orientation:'h',x:r.map(d=>d.ins),y:r.map(d=>d.name),
+    marker:{color:r.map(d=>d.ins),colorscale:[[0,'#eef0e9'],[0.5,'#e8896a'],[1,'#c1110b']],cmin:0,cmax:35,
+      colorbar:{title:{text:'%',font:{size:11}},thickness:12,len:0.6,x:1.0,tickfont:{size:10}},
+      line:{color:'#fff',width:1}},
+    text:r.map(d=>d.ins+'%'),textposition:'auto',insidetextfont:{color:'#fff'},outsidetextfont:{color:'#3c4750'},
+    hovertemplate:'<b>%{y}</b><br>Energy insecurity: %{x}%<extra>RECS, US Census region</extra>',width:0.6};
+  const w=$('plot').clientWidth||card.clientWidth||700;
+  const h=Math.min(Math.max(Math.round(w*0.5),360),560);
+  const layout={paper_bgcolor:PAPER,plot_bgcolor:PAPER,font:FONT,height:h,margin:{t:10,b:46,l:92,r:72},
+    xaxis:{title:{text:'% reporting energy insecurity (RECS, approx)',font:{size:12}},range:[0,42],gridcolor:GRID,zeroline:false,showline:true,linecolor:'#9fb0b8'},
+    yaxis:{automargin:true,tickfont:{size:13.5},categoryorder:'array',categoryarray:order}};
+  plot([trace],layout);
+}
+
 function drawMap(metric){
+  if(continent==='na') return drawUSMapBar();
   let trace;
   if(metric==='tado'){
     trace={type:'choropleth',locationmode:'ISO-3',locations:TADO.map(c=>c.iso),z:TADO.map(c=>c.t),
@@ -317,10 +385,15 @@ const SCATTER_LABELPOS={
   Cyprus:'top center', Serbia:'bottom left', Montenegro:'middle right',
   Albania:'middle left', 'North Macedonia':'bottom center', Turkiye:'top center'
 };
+// Off-the-top marker: clamp a value above 30 to y=29 so the fixed axis never
+// jumps, and draw it as a hollow up-triangle keeping its colour. True value
+// lives in the tap readout.
+const clampY=v=>Math.min(v,29);
+const offTop=v=>v>30;
 function drawScatter(){
+  if(continent==='na') return drawUSScatter();
   const pts=points();
   if(!pts.length){ plot([],{paper_bgcolor:PAPER,height:510}); return; }
-  const maxd=Math.max(...pts.map(p=>p.d));
   // Bubble size is min-max normalised across all plotted points to a pixel
   // range of about 9 to 35. Live gdp is GDP per capita in absolute euros, so a
   // raw scale would oversize every marker; normalising keeps them comparable.
@@ -339,25 +412,48 @@ function drawScatter(){
   const traces=regions.map(r=>{
     const items=pts.filter(p=>p.region===r);
     return {type:'scatter',mode:'markers+text',name:r,
-      x:items.map(p=>p.hdd),y:items.map(p=>p.d),
+      x:items.map(p=>p.hdd),y:items.map(p=>clampY(p.d)),
       text:items.map(p=>(p.d>=labelThresh&&p.iso!=='FIN'&&p.name!==worst.name)?p.name:''),
       textposition:items.map(p=>SCATTER_LABELPOS[p.name]||'top center'),textfont:{size:labelSize,color:'#3c4750'},
-      customdata:items.map(p=>[p.gdp,p.name]),
-      hovertemplate:'<b>%{customdata[1]}</b><br>Heating degree days: %{x}<br>Unable to keep warm: %{y}%<br>GDP/capita: EUR %{customdata[0]}<extra>'+r+'</extra>',
-      marker:{size:items.map(p=>bubbleSize(p.gdp)),color:REGION_COLOR[r],line:{color:'#fff',width:1.4},sizemode:'diameter'}};
+      customdata:items.map(p=>[p.gdp,p.name,p.d]),
+      hovertemplate:'<b>%{customdata[1]}</b><br>Heating degree days: %{x}<br>Unable to keep warm: %{customdata[2]}%<br>GDP/capita: EUR %{customdata[0]}<extra>'+r+'</extra>',
+      marker:{size:items.map(p=>bubbleSize(p.gdp)),
+        symbol:items.map(p=>offTop(p.d)?'triangle-up-open':'circle'),
+        color:REGION_COLOR[r],line:{color:'#fff',width:1.4},sizemode:'diameter'}};
   });
-  const ann=[{x:5900,y:Math.min(maxd,20)*0.99,text:'what intuition predicts',showarrow:false,font:{size:10.5,color:'#90a0a7'},xanchor:'right'}];
-  if(fin) ann.push({x:fin.hdd,y:fin.d,ax:-8,ay:-42,text:'<b>Finland</b>',font:{size:11,color:'#1A476F'},arrowcolor:'#1A476F',arrowwidth:1.3});
+  // Fixed endpoints (not data-derived) so the dashed guide and notes never move.
+  const ann=[{x:5900,y:20,text:'what intuition predicts',showarrow:false,font:{size:10.5,color:'#90a0a7'},xanchor:'right'}];
+  if(fin) ann.push({x:fin.hdd,y:clampY(fin.d),ax:-8,ay:-42,text:'<b>Finland</b>',font:{size:11,color:'#1A476F'},arrowcolor:'#1A476F',arrowwidth:1.3});
   // Worst-country label points straight up so it never lands on neighbouring labels (Lithuania, the dashed-line note).
-  if(worst) ann.push({x:worst.hdd,y:worst.d,ax:0,ay:-34,text:'<b>'+worst.name+'</b>',font:{size:11,color:'#E3120B'},arrowcolor:'#E3120B',arrowwidth:1.3});
+  if(worst) ann.push({x:worst.hdd,y:clampY(worst.d),ax:0,ay:-34,text:'<b>'+worst.name+'</b>',font:{size:11,color:'#C8521E'},arrowcolor:'#C8521E',arrowwidth:1.3});
   const xtitle=mobile?'Heating degree days':'Heating degree days (colder country to the right)';
   const layout={paper_bgcolor:PAPER,plot_bgcolor:PANEL,font:FONT,height:510,margin:{t:14,b:52,l:58,r:18},showlegend:false,
     xaxis:{title:{text:xtitle,font:{size:12.5}},range:[200,6200],showgrid:false,showline:true,linecolor:'#9fb0b8',zeroline:false},
-    yaxis:{title:{text:'% unable to keep home adequately warm',font:{size:12.5}},range:[0,Math.max(22,maxd+2)],gridcolor:GRID,zeroline:false,showline:false},
-    shapes:[{type:'line',x0:1000,y0:Math.min(maxd,20),x1:6000,y1:1,line:{color:'#a9b7bd',width:1.5,dash:'dash'}}],
+    yaxis:{title:{text:'% unable to keep home adequately warm',font:{size:12.5}},range:[0,30],gridcolor:GRID,zeroline:false,showline:false},
+    shapes:[{type:'line',x0:1000,y0:20,x1:6000,y1:2,line:{color:'#a9b7bd',width:1.5,dash:'dash'}}],
     annotations:ann};
-  if(focusCountry){ const p=pts.find(x=>x.name===focusCountry); if(p) traces.push(ringTrace(p.hdd,p.d)); }
-  plot(traces,layout);
+  if(focusCountry){ const p=pts.find(x=>x.name===focusCountry); if(p) traces.push(ringTrace(p.hdd,clampY(p.d))); }
+  plot(traces,layout).then(gd=>{ gd.on('plotly_click',ev=>{ setReadout(scatterReadoutFor(clickName(ev.points[0]))); }); });
+}
+
+// North America scatter: the four US Census regions on the same fixed axes, in a
+// distinct US colour. y is energy insecurity (RECS), a broader measure, and the
+// HDD is approximate, so these are indicative, not a like-for-like EU overlay.
+function drawUSScatter(){
+  const mobile=window.matchMedia('(max-width:560px)').matches;
+  const r=US_REGIONS;
+  const trace={type:'scatter',mode:'markers+text',
+    x:r.map(d=>d.hddC),y:r.map(d=>clampY(d.ins)),
+    text:r.map(d=>d.name),textposition:r.map(d=>offTop(d.ins)?'bottom center':'top center'),textfont:{size:mobile?9.5:10.5,color:'#3c4750'},
+    customdata:r.map(d=>[d.hddC,d.name,d.ins]),
+    hovertemplate:'<b>%{customdata[1]}</b><br>Heating degree days (approx): %{customdata[0]}<br>Energy insecurity: %{customdata[2]}%<extra>US Census region</extra>',
+    marker:{size:17,symbol:r.map(d=>offTop(d.ins)?'triangle-up-open':'circle'),color:US_COLOR,line:{color:'#fff',width:1.6},sizemode:'diameter'}};
+  const xtitle=mobile?'Heating degree days (approx)':'Heating degree days, Celsius base (approx)';
+  const layout={paper_bgcolor:PAPER,plot_bgcolor:PANEL,font:FONT,height:510,margin:{t:14,b:52,l:58,r:18},showlegend:false,
+    xaxis:{title:{text:xtitle,font:{size:12.5}},range:[200,6200],showgrid:false,showline:true,linecolor:'#9fb0b8',zeroline:false},
+    yaxis:{title:{text:'% reporting energy insecurity (RECS, approx)',font:{size:12.5}},range:[0,30],gridcolor:GRID,zeroline:false,showline:false},
+    annotations:[{x:5900,y:28,text:'US Census regions (indicative)',showarrow:false,font:{size:10.5,color:'#90a0a7'},xanchor:'right'}]};
+  plot([trace],layout).then(gd=>{ gd.on('plotly_click',ev=>{ setReadout(scatterReadoutFor(clickName(ev.points[0]))); }); });
 }
 
 // "Same question?" view. The old dumbbell chart did not read, so this is plain
@@ -409,31 +505,36 @@ function drawDivergence(){
     xaxis:{title:{text:'Indoor temperature in smart-thermostat homes (\u00b0C)',font:{size:12.5}},range:[16.4,20.7],dtick:1,showgrid:false,showline:true,linecolor:'#9fb0b8',zeroline:false},
     yaxis:{title:{text:'% of population unable to keep home warm',font:{size:12.5}},range:[-1.6,21.5],gridcolor:GRID,zeroline:false,showline:false},
     shapes:[
-      {type:'rect',x0:18.45,x1:20.7,y0:13,y1:21.5,fillcolor:'rgba(227,18,11,0.06)',line:{width:0}},
-      {type:'line',x0:18,x1:18,y0:-1.6,y1:21.5,line:{color:'#E3120B',width:1.5,dash:'dot'}},
+      {type:'rect',x0:18.45,x1:20.7,y0:13,y1:21.5,fillcolor:'rgba(200,82,30,0.06)',line:{width:0}},
+      {type:'line',x0:18,x1:18,y0:-1.6,y1:21.5,line:{color:'#C8521E',width:1.5,dash:'dot'}},
       {type:'line',x0:16.6,x1:20.5,y0:18,y1:1,line:{color:'#a9b7bd',width:1.5,dash:'dash'}}
     ],
     annotations:[
-      {x:18,y:21.5,yanchor:'bottom',text:'WHO 18\u00b0C benchmark',showarrow:false,font:{size:10.5,color:'#E3120B'},xanchor:'center'},
-      {x:19.55,y:20.6,text:'Warm thermostats, cold populations',showarrow:false,font:{size:11,color:'#b3140e'},xanchor:'center'},
+      {x:18,y:21.5,yanchor:'bottom',text:'WHO 18\u00b0C benchmark',showarrow:false,font:{size:10.5,color:'#C8521E'},xanchor:'center'},
+      {x:19.55,y:20.6,text:'Warm thermostats, cold populations',showarrow:false,font:{size:11,color:'#A8431B'},xanchor:'center'},
       {x:16.45,y:19.4,text:'expected:<br>warmer homes,<br>fewer left cold',showarrow:false,font:{size:10,color:'#90a0a7'},xanchor:'left',align:'left'}
     ]};
   if(focusCountry){ const p=pts.find(x=>x.name===focusCountry); if(p) traces.push(ringTrace(p.tado,p.ekw)); }
-  plot(traces,layout);
+  plot(traces,layout).then(gd=>{ gd.on('plotly_click',ev=>{ setReadout(divReadoutFor(clickName(ev.points[0]))); }); });
 }
 
 function setLegend(){
   if(cur==='map'){
+    if(continent==='na'){
+      legend.innerHTML='<span style="color:#90a0a7">US energy insecurity (RECS), a broader measure than the EU metric, shown on its own scale</span>'; return; }
     legend.innerHTML = mapMetric==='tado'
       ? '<span style="color:#90a0a7">Deeper orange: warmer indoor temperature (tado, affluent homes)</span>'
       : '<span style="color:#90a0a7">Darker red: larger share unable to keep warm (Eurostat)</span>';
   } else if(cur==='scatter'){
+    if(continent==='na'){
+      legend.innerHTML=`<span><i style="background:${US_COLOR}"></i>US Census region</span>`
+        +'<span style="color:#90a0a7">y is energy insecurity (RECS), a broader measure; HDD approximate</span>'; return; }
     legend.innerHTML=Object.keys(REGION_COLOR).map(r=>`<span><i style="background:${REGION_COLOR[r]}"></i>${r}</span>`).join('')
-      +'<span style="color:#90a0a7">Bubble size: GDP per capita</span>';
+      +'<span style="color:#90a0a7">Bubble size: GDP per capita. Hollow triangle: value above 30%, pinned to the top</span>';
   } else if(cur==='divergence'){
     const rs=[...new Set(divPoints().map(p=>p.region))];
     legend.innerHTML=rs.map(r=>`<span><i style="background:${REGION_COLOR[r]}"></i>${r}</span>`).join('')
-      +'<span style="color:#90a0a7">Dotted red line: WHO 18\u00b0C benchmark</span>';
+      +'<span style="color:#90a0a7">Dotted orange line: WHO 18\u00b0C benchmark</span>';
   } else {
     legend.innerHTML='';
   }
@@ -453,15 +554,32 @@ function render(){
 
 function setHead(m){ $('ctitle').textContent=m.title; $('cdek').textContent=m.dek; $('source').textContent=m.source; $('insight').innerHTML=m.insight; }
 function setTexts(){
-  if(cur==='map'){ setHead(MAP_META[mapMetric]);
-    document.querySelectorAll('#metricpills button').forEach(b=>b.classList.toggle('on',b.dataset.m===mapMetric)); }
-  else { const m=VIEW[cur]; $('ctitle').textContent=m.title; $('cdek').textContent=m.dek; $('source').textContent=m.source; $('insight').innerHTML=INSIGHT[cur]; }
+  if(cur==='map'){
+    setHead(continent==='na'?US_MAP_META:MAP_META[mapMetric]);
+    document.querySelectorAll('#metricpills button').forEach(b=>b.classList.toggle('on',b.dataset.m===mapMetric));
+  } else if(cur==='scatter' && continent==='na'){
+    $('ctitle').textContent='Climate and energy insecurity, US regions';
+    $('cdek').textContent=US_SCATTER_DEK;
+    $('source').textContent='Source: EIA RECS (energy insecurity) and US heating degree days converted to the Celsius base. Approximate.';
+    $('insight').innerHTML=US_SCATTER_INSIGHT;
+  } else { const m=VIEW[cur]; $('ctitle').textContent=m.title; $('cdek').textContent=m.dek; $('source').textContent=m.source; $('insight').innerHTML=INSIGHT[cur]; }
+  document.querySelectorAll('#geopills button').forEach(b=>b.classList.toggle('on',b.dataset.c===continent));
 }
 function syncContext(){
-  $('metricpills').style.display = cur==='map'?'flex':'none';
-  $('focusWrap').style.display = (cur==='scatter'||cur==='divergence')?'flex':'none';
-  const showSlider = MODEL.real && MODEL.years.length>1 && ((cur==='map'&&mapMetric==='warm')||cur==='scatter');
+  const onScatter=cur==='scatter';
+  // Continent toggle shows on the hardship map and the scatter only; tado and
+  // divergence are Europe-only, so it stays hidden there.
+  const showGeo=(cur==='map'&&mapMetric==='warm')||onScatter;
+  $('geopills').style.display = showGeo?'flex':'none';
+  // Metric (warm/tado) only applies to the European map; the US layer has one measure.
+  $('metricpills').style.display = (cur==='map'&&continent==='eu')?'flex':'none';
+  $('focusWrap').style.display = (onScatter||cur==='divergence')?'flex':'none';
+  // US layers are single-snapshot, so no year slider there.
+  const showSlider = MODEL.real && MODEL.years.length>1 && continent==='eu' && ((cur==='map'&&mapMetric==='warm')||onScatter);
   $('sliderWrap').style.display = showSlider?'flex':'none';
+  const showReadout=(onScatter||cur==='divergence');
+  $('readout').style.display = showReadout?'block':'none';
+  if(!showReadout) setReadout('');
 }
 
 function setView(v){
@@ -612,8 +730,14 @@ async function boot(){
 }
 
 $('tabs').addEventListener('click',e=>{ if(e.target.dataset.view) setView(e.target.dataset.view); });
-$('metricpills').addEventListener('click',e=>{ if(e.target.dataset.m){ mapMetric=e.target.dataset.m; setTexts(); syncContext(); setLegend(); render(); } });
-$('focus').addEventListener('change',e=>{ focusCountry=e.target.value; render(); });
+$('metricpills').addEventListener('click',e=>{ if(e.target.dataset.m){ mapMetric=e.target.dataset.m;
+  if(mapMetric==='tado') continent='eu'; // tado is Europe-only
+  setTexts(); syncContext(); setLegend(); render(); } });
+$('geopills').addEventListener('click',e=>{ if(e.target.dataset.c){ continent=e.target.dataset.c;
+  setReadout(''); setTexts(); syncContext(); setLegend(); render(); } });
+$('focus').addEventListener('change',e=>{ focusCountry=e.target.value; render();
+  if(focusCountry){ setReadout(cur==='divergence'?divReadoutFor(focusCountry):scatterReadoutFor(focusCountry)); }
+  else setReadout(''); });
 $('yearSlider').addEventListener('input',e=>{ MODEL.year=+e.target.value; $('yearLabel').textContent=MODEL.year; render(); });
 // Re-render map (height tracks card width) and scatter (label set depends on
 // viewport width) on resize; divergence just reflows; compare is HTML, skip it.
@@ -624,9 +748,15 @@ window.addEventListener('resize',()=>{
   else Plotly.Plots.resize('plot');
 });
 // Safety net for touch: tapping outside the chart clears any tooltip that latched.
+// On the scatters, a tap that is not on a data point also clears the readout; a
+// tap on a point does not clear here (its plotly_click fills the readout right after).
 document.addEventListener('pointerdown',e=>{
   const gd=$('plot');
   if(gd&&gd.data&&!gd.contains(e.target)){ try{ Plotly.Fx.unhover(gd); }catch(_){ } }
+  if(cur==='scatter'||cur==='divergence'){
+    const onPoint=e.target.closest&&e.target.closest('g.points');
+    if(!onPoint) setReadout('');
+  }
 });
 
 boot();
