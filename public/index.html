@@ -36,6 +36,11 @@
   .chartcard{background:var(--paper); border:1px solid var(--line); padding:18px 18px 12px; transition:opacity .22s ease;}
   .ctitle{font-size:17px; font-weight:700; margin:0 0 3px; letter-spacing:-0.01em;}
   .cdek{font-size:13px; color:var(--grey); margin:0 0 10px; line-height:1.45; max-width:760px;}
+  /* mobile-only "Explanation" toggle that expands a collapsed dek */
+  .dek-toggle{color:var(--grey); font-weight:600; cursor:pointer; white-space:nowrap;
+    text-decoration:none; border-bottom:1px dotted var(--grey);}
+  .dek-toggle:hover{color:var(--ink); border-bottom-color:var(--ink);}
+  .dek-chev{font-weight:700; display:inline-block; margin-left:1px;}
   .metricpills{display:flex; gap:0; width:fit-content; border:1px solid var(--line); margin:0 0 12px;}
   .metricpills button{border:0; background:transparent; font:inherit; font-size:12.5px; font-weight:600;
     color:var(--grey); padding:5px 13px; cursor:pointer; border-right:1px solid var(--line);}
@@ -44,7 +49,7 @@
   .slider{display:flex; align-items:center; gap:10px; margin:0 0 12px; font-size:12px; color:var(--grey);}
   .slider input[type=range]{width:210px; accent-color:var(--red);}
   .slider b{color:var(--ink); font-size:13px; min-width:34px;}
-  #plot{width:100%; height:510px;}
+  #plot{width:100%; min-height:320px;}
   .legend{display:flex; flex-wrap:wrap; gap:14px; margin:9px 2px 0; font-size:12px; color:#445;}
   .legend span{display:inline-flex; align-items:center; gap:6px;}
   .legend i{width:10px; height:10px; display:inline-block;}
@@ -87,7 +92,7 @@
   .ct-result b{font-weight:700;}
   @media (prefers-reduced-motion:reduce){ .chartcard{transition:none;} }
   @media (max-width:560px){
-    .focus{margin-left:0;} #plot{height:460px;} .slider input[type=range]{width:150px;}
+    .focus{margin-left:0;} .slider input[type=range]{width:150px;}
     .cmp-row{grid-template-columns:1fr 1fr; gap:10px;}
     .cmp-row-head{display:none;}
     .cmp-place{grid-column:1 / -1; margin-bottom:2px;}
@@ -318,14 +323,80 @@ function divReadoutFor(name){
   return '<b>'+p.name+'</b>: smart-thermostat homes '+p.tado.toFixed(2)+'°C, '+round1(p.ekw)+'% of people unable to keep warm.';
 }
 
-// Plotly geo preserves the map's aspect ratio, so a short fixed height left the
-// choropleth as a narrow vertical strip on wide screens. Two-part fix: (1) the
-// geo window below is a wide landscape lon/lat box so Europe spans the card
-// width, and (2) the container height tracks the card width here, clamped, so
-// the box is tall enough to contain the map and the insight below never rides up.
+// Single mobile breakpoint shared by every responsive decision below.
+const isMobile=()=>window.matchMedia('(max-width:560px)').matches;
+
+// Plotly geo preserves the map's aspect ratio. On desktop a wide landscape geo
+// window plus a height of ~0.62x the card width fills the card. On a phone that
+// same wide map sits tiny in a short box, so mobile gets a PORTRAIT box (height
+// ~1.3x the card width) and a tighter, taller geo window (see drawMap) so Europe
+// fills it edge to edge.
 function mapHeight(){
   const w=$('plot').clientWidth||card.clientWidth||700;
+  if(isMobile()) return Math.min(Math.max(Math.round(w*1.3),430),620);
   return Math.min(Math.max(Math.round(w*0.62),460),760);
+}
+
+// Scatter box height: desktop stays 510; mobile gets a taller box (~1.15x card
+// width, clamped) so the bubbles are less cramped.
+function scatterHeight(){
+  if(!isMobile()) return 510;
+  const w=$('plot').clientWidth||card.clientWidth||360;
+  return Math.min(Math.max(Math.round(w*1.15),430),560);
+}
+
+// ---- collapsible dek on mobile (desktop always shows the full text) ----
+function firstSentence(t){ const m=String(t).match(/^[\s\S]*?[.!?](?=\s|$)/); return m?m[0].trim():String(t).trim(); }
+function setDek(text){
+  const el=$('cdek'); delete el.dataset.full; el.dataset.open='0';
+  if(!isMobile()){ el.textContent=text; return; }
+  const first=firstSentence(text);
+  if(first.length>=String(text).trim().length){ el.textContent=text; return; } // single sentence: no toggle
+  el.textContent='';
+  const body=document.createElement('span'); body.className='dek-body'; body.textContent=first;
+  const tog=document.createElement('a'); tog.className='dek-toggle'; tog.setAttribute('role','button'); tog.tabIndex=0;
+  tog.innerHTML='Explanation <span class="dek-chev">+</span>';
+  el.appendChild(body); el.appendChild(document.createTextNode(' ')); el.appendChild(tog);
+  el.dataset.full=text; el.dataset.first=first;
+}
+function toggleDek(){
+  const el=$('cdek'), body=el.querySelector('.dek-body'), chev=el.querySelector('.dek-chev');
+  if(!body||!el.dataset.full) return;
+  const next=el.dataset.open!=='1';
+  body.textContent=next?el.dataset.full:el.dataset.first;
+  if(chev) chev.textContent=next?'−':'+';
+  el.dataset.open=next?'1':'0';
+}
+
+// Greedy desktop label placement. Keeps the seeded (already-shown) labels, then
+// adds as many of the remaining points as fit without overlapping a marker, an
+// already-placed label, or a reserved annotation box. Outer points get priority.
+// Returns name -> textposition (a name missing from the result stays unlabelled).
+function placeLabels(items, geom, primary, exclude, reserved){
+  const {W,H,m,xr,yr}=geom;
+  const innerW=W-m.l-m.r, innerH=H-m.t-m.b;
+  const PX=x=>m.l+(x-xr[0])/(xr[1]-xr[0])*innerW;
+  const PY=y=>m.t+(1-(y-yr[0])/(yr[1]-yr[0]))*innerH;
+  const E=items.map(p=>({name:p.name,x:PX(p.x),y:PY(p.y),r:p.r||6}));
+  const byName={}; E.forEach(e=>byName[e.name]=e);
+  const CH=12, cw=n=>n.length*5.7+4;
+  const boxAt=(e,pos)=>{ const w=cw(e.name),h=CH,g=e.r+2; let cx=e.x,cy=e.y;
+    if(pos.indexOf('top')>=0) cy=e.y-g-h/2; else if(pos.indexOf('bottom')>=0) cy=e.y+g+h/2;
+    if(pos.indexOf('left')>=0) cx=e.x-g-w/2; else if(pos.indexOf('right')>=0) cx=e.x+g+w/2;
+    return {x0:cx-w/2,y0:cy-h/2,x1:cx+w/2,y1:cy+h/2}; };
+  const overlap=(a,b)=>!(a.x1<=b.x0||a.x0>=b.x1||a.y1<=b.y0||a.y0>=b.y1);
+  const inB=b=>b.x0>=1&&b.x1<=W-1&&b.y0>=m.t-14&&b.y1<=H-m.b+34;
+  const occ=[];
+  E.forEach(e=>occ.push({x0:e.x-e.r,y0:e.y-e.r,x1:e.x+e.r,y1:e.y+e.r}));
+  (reserved||[]).forEach(rb=>{ occ.push(boxAt({name:rb.name,x:PX(rb.x),y:PY(rb.y),r:0}, rb.pos||'middle center')); });
+  const labelPos={};
+  Object.keys(primary||{}).forEach(n=>{ const e=byName[n]; if(!e) return; labelPos[n]=primary[n]; occ.push(boxAt(e,primary[n])); });
+  const cx0=E.reduce((s,e)=>s+e.x,0)/(E.length||1), cy0=E.reduce((s,e)=>s+e.y,0)/(E.length||1);
+  const order=['top center','bottom center','middle right','middle left','top right','top left','bottom right','bottom left'];
+  E.filter(e=>!(e.name in labelPos)&&!(exclude&&exclude.has(e.name)))
+   .sort((a,b)=>Math.hypot(b.x-cx0,b.y-cy0)-Math.hypot(a.x-cx0,a.y-cy0))
+   .forEach(e=>{ for(let i=0;i<order.length;i++){ const b=boxAt(e,order[i]); if(inB(b)&&!occ.some(o=>overlap(b,o))){ labelPos[e.name]=order[i]; occ.push(b); break; } } });
+  return labelPos;
 }
 
 // US Census regions are not states, so a USA-states choropleth will not draw
@@ -366,11 +437,14 @@ function drawMap(metric){
       marker:{line:{color:'#fff',width:0.8}},
       colorbar:{title:{text:'%',font:{size:11}},thickness:12,len:0.62,x:0.97,tickfont:{size:10}}};
   }
+  // Desktop keeps the wide landscape window; mobile uses a tighter, taller window
+  // so Europe fills the portrait box rather than floating small with side margins.
+  const mob=isMobile();
   const layout={paper_bgcolor:PAPER,font:FONT,margin:{t:6,b:0,l:0,r:0},height:mapHeight(),
     geo:{scope:'europe',resolution:50,showcountries:true,countrycolor:'#fff',showframe:false,
       showcoastlines:false,showland:true,landcolor:'#e7ebec',bgcolor:PANEL,
       projection:{type:'mercator'},
-      lonaxis:{range:[-26,46]},lataxis:{range:[33,71]}}};
+      lonaxis:{range:mob?[-13,35]:[-26,46]},lataxis:{range:mob?[34,72]:[33,71]}}};
   // dragmode:false (from plot()) plus scrollZoom/doubleClick off keeps the map fixed: no zoom, no pan.
   plot([trace],layout);
 }
@@ -400,21 +474,37 @@ function drawScatter(){
   const gvals=pts.map(p=>p.gdp).filter(g=>g!=null);
   const gmin=Math.min(...gvals), gmax=Math.max(...gvals);
   const bubbleSize=g=>(g==null)?9:9+26*Math.sqrt((g-gmin)/Math.max(gmax-gmin,1));
-  // On narrow screens label fewer points and shrink the font so nothing collides.
-  const mobile=window.matchMedia('(max-width:560px)').matches;
-  const labelThresh=mobile?15:8;
+  const mobile=isMobile();
   const labelSize=mobile?9:10;
+  const H=scatterHeight();
   // Finland and the worst country each get their own arrow annotation below, so
   // they are excluded from the point text to avoid a doubled label.
   const fin=pts.find(p=>p.iso==='FIN');
   let worst=pts[0]; pts.forEach(p=>{ if(p.d>worst.d) worst=p; });
+  const finName=fin?fin.name:'__none__';
+  // Mobile keeps the thinned label set; desktop labels as many bubbles as fit
+  // without overlap (existing high-hardship labels seeded so they do not move).
+  let labelPos;
+  if(mobile){
+    labelPos={};
+    pts.forEach(p=>{ if(p.d>=15 && p.name!==finName && p.name!==worst.name) labelPos[p.name]=SCATTER_LABELPOS[p.name]||'top center'; });
+  } else {
+    const primary={};
+    pts.filter(p=>p.d>=8 && p.name!==finName && p.name!==worst.name).forEach(p=>{ primary[p.name]=SCATTER_LABELPOS[p.name]||'top center'; });
+    const reserved=[{x:5900,y:20,name:'what intuition predicts',pos:'middle left'}];
+    if(fin) reserved.push({x:fin.hdd,y:clampY(fin.d)+2.8,name:'Finland',pos:'top center'});
+    if(worst) reserved.push({x:worst.hdd,y:clampY(worst.d)+2.3,name:worst.name,pos:'top center'});
+    const W=$('plot').clientWidth||card.clientWidth||900;
+    labelPos=placeLabels(pts.map(p=>({x:p.hdd,y:clampY(p.d),name:p.name,r:bubbleSize(p.gdp)/2})),
+      {W,H,m:{t:14,b:52,l:58,r:18},xr:[200,6200],yr:[0,30]}, primary, new Set([finName,worst.name]), reserved);
+  }
   const regions=[...new Set(pts.map(p=>p.region))];
   const traces=regions.map(r=>{
     const items=pts.filter(p=>p.region===r);
     return {type:'scatter',mode:'markers+text',name:r,
       x:items.map(p=>p.hdd),y:items.map(p=>clampY(p.d)),
-      text:items.map(p=>(p.d>=labelThresh&&p.iso!=='FIN'&&p.name!==worst.name)?p.name:''),
-      textposition:items.map(p=>SCATTER_LABELPOS[p.name]||'top center'),textfont:{size:labelSize,color:'#3c4750'},
+      text:items.map(p=>(p.name in labelPos)?p.name:''),
+      textposition:items.map(p=>labelPos[p.name]||'top center'),textfont:{size:labelSize,color:'#3c4750'},
       customdata:items.map(p=>[p.gdp,p.name,p.d]),
       hovertemplate:'<b>%{customdata[1]}</b><br>Heating degree days: %{x}<br>Unable to keep warm: %{customdata[2]}%<br>GDP/capita: EUR %{customdata[0]}<extra>'+r+'</extra>',
       marker:{size:items.map(p=>bubbleSize(p.gdp)),
@@ -427,7 +517,7 @@ function drawScatter(){
   // Worst-country label points straight up so it never lands on neighbouring labels (Lithuania, the dashed-line note).
   if(worst) ann.push({x:worst.hdd,y:clampY(worst.d),ax:0,ay:-34,text:'<b>'+worst.name+'</b>',font:{size:11,color:'#C8521E'},arrowcolor:'#C8521E',arrowwidth:1.3});
   const xtitle=mobile?'Heating demand (degree days)':'How cold the year is, in heating degree days';
-  const layout={paper_bgcolor:PAPER,plot_bgcolor:PANEL,font:FONT,height:510,margin:{t:14,b:52,l:58,r:18},showlegend:false,
+  const layout={paper_bgcolor:PAPER,plot_bgcolor:PANEL,font:FONT,height:H,margin:{t:14,b:52,l:58,r:18},showlegend:false,
     xaxis:{title:{text:xtitle,font:{size:12.5}},range:[200,6200],showgrid:false,showline:true,linecolor:'#9fb0b8',zeroline:false},
     yaxis:{title:{text:'% unable to keep home adequately warm',font:{size:12.5}},range:[0,30],gridcolor:GRID,zeroline:false,showline:false},
     shapes:[{type:'line',x0:1000,y0:20,x1:6000,y1:2,line:{color:'#a9b7bd',width:1.5,dash:'dash'}}],
@@ -440,7 +530,7 @@ function drawScatter(){
 // distinct US colour. y is energy insecurity (RECS), a broader measure, and the
 // HDD is approximate, so these are indicative, not a like-for-like EU overlay.
 function drawUSScatter(){
-  const mobile=window.matchMedia('(max-width:560px)').matches;
+  const mobile=isMobile();
   const r=US_REGIONS;
   const trace={type:'scatter',mode:'markers+text',
     x:r.map(d=>d.hddC),y:r.map(d=>clampY(d.ins)),
@@ -449,7 +539,7 @@ function drawUSScatter(){
     hovertemplate:'<b>%{customdata[1]}</b><br>Heating degree days (approx): %{customdata[0]}<br>Energy insecurity: %{customdata[2]}%<extra>US Census region</extra>',
     marker:{size:17,symbol:r.map(d=>offTop(d.ins)?'triangle-up-open':'circle'),color:US_COLOR,line:{color:'#fff',width:1.6},sizemode:'diameter'}};
   const xtitle=mobile?'Heating demand (degree days)':'How cold the year is, in heating degree days';
-  const layout={paper_bgcolor:PAPER,plot_bgcolor:PANEL,font:FONT,height:510,margin:{t:14,b:52,l:58,r:18},showlegend:false,
+  const layout={paper_bgcolor:PAPER,plot_bgcolor:PANEL,font:FONT,height:scatterHeight(),margin:{t:14,b:52,l:58,r:18},showlegend:false,
     xaxis:{title:{text:xtitle,font:{size:12.5}},range:[200,6200],showgrid:false,showline:true,linecolor:'#9fb0b8',zeroline:false},
     yaxis:{title:{text:'% reporting energy insecurity (RECS, approx)',font:{size:12.5}},range:[0,30],gridcolor:GRID,zeroline:false,showline:false},
     annotations:[{x:5900,y:28,text:'US Census regions (indicative)',showarrow:false,font:{size:10.5,color:'#90a0a7'},xanchor:'right'}]};
@@ -495,13 +585,31 @@ function drawDivergence(){
     Romania:'top center',France:'middle left',Italy:'bottom center',Slovakia:'middle right',
     Netherlands:'top center',Finland:'middle right'};
   const labeled=p=>(p.ekw>=8||p.name==='Finland'||p.name==='Netherlands');
+  const mobile=isMobile();
+  const H=scatterHeight();
+  // Mobile keeps the thinned set; desktop seeds those same labels then adds as
+  // many of the rest as fit without overlap.
+  let labelPos;
+  if(mobile){
+    labelPos={}; pts.forEach(p=>{ if(labeled(p)) labelPos[p.name]=LABELPOS[p.name]||'top center'; });
+  } else {
+    const primary={}; pts.filter(labeled).forEach(p=>{ primary[p.name]=LABELPOS[p.name]||'top center'; });
+    const reserved=[
+      {x:18,y:21.5,name:'WHO 18C benchmark',pos:'top center'},
+      {x:19.55,y:20.6,name:'Warm thermostats, cold populations',pos:'middle center'},
+      {x:16.45,y:19.4,name:'expected warmer homes fewer left cold xx',pos:'middle right'}
+    ];
+    const W=$('plot').clientWidth||card.clientWidth||900;
+    labelPos=placeLabels(pts.map(p=>({x:p.tado,y:p.ekw,name:p.name,r:5.5})),
+      {W,H,m:{t:16,b:54,l:58,r:38},xr:[16.4,20.7],yr:[-1.6,21.5]}, primary, new Set(), reserved);
+  }
   const trace={type:'scatter',mode:'markers+text',x:pts.map(p=>p.tado),y:pts.map(p=>p.ekw),
-    text:pts.map(p=>labeled(p)?p.name:''),
-    textposition:pts.map(p=>LABELPOS[p.name]||'top center'),textfont:{size:10,color:'#3c4750'},customdata:pts.map(p=>p.name),
+    text:pts.map(p=>(p.name in labelPos)?p.name:''),
+    textposition:pts.map(p=>labelPos[p.name]||'top center'),textfont:{size:10,color:'#3c4750'},customdata:pts.map(p=>p.name),
     marker:{size:11,color:pts.map(p=>REGION_COLOR[p.region]||'#006BA2'),line:{color:'#fff',width:1.5}},
     hovertemplate:'<b>%{customdata}</b><br>Smart-home indoor temp: %{x:.2f}\u00b0C<br>Population unable to keep warm: %{y}%<extra></extra>',showlegend:false};
   const traces=[trace];
-  const layout={paper_bgcolor:PAPER,plot_bgcolor:PANEL,font:FONT,height:510,margin:{t:16,b:54,l:58,r:38},showlegend:false,
+  const layout={paper_bgcolor:PAPER,plot_bgcolor:PANEL,font:FONT,height:H,margin:{t:16,b:54,l:58,r:38},showlegend:false,
     xaxis:{title:{text:'Indoor temperature in smart-thermostat homes (\u00b0C)',font:{size:12.5}},range:[16.4,20.7],dtick:1,showgrid:false,showline:true,linecolor:'#9fb0b8',zeroline:false},
     yaxis:{title:{text:'% of population unable to keep home warm',font:{size:12.5}},range:[-1.6,21.5],gridcolor:GRID,zeroline:false,showline:false},
     shapes:[
@@ -552,17 +660,17 @@ function render(){
   else drawDivergence();
 }
 
-function setHead(m){ $('ctitle').textContent=m.title; $('cdek').textContent=m.dek; $('source').textContent=m.source; $('insight').innerHTML=m.insight; }
+function setHead(m){ $('ctitle').textContent=m.title; setDek(m.dek); $('source').textContent=m.source; $('insight').innerHTML=m.insight; }
 function setTexts(){
   if(cur==='map'){
     setHead(continent==='na'?US_MAP_META:MAP_META[mapMetric]);
     document.querySelectorAll('#metricpills button').forEach(b=>b.classList.toggle('on',b.dataset.m===mapMetric));
   } else if(cur==='scatter' && continent==='na'){
     $('ctitle').textContent='Climate and energy insecurity, US regions';
-    $('cdek').textContent=US_SCATTER_DEK;
+    setDek(US_SCATTER_DEK);
     $('source').textContent='Source: EIA RECS (energy insecurity) and US heating degree days converted to the Celsius base. Approximate.';
     $('insight').innerHTML=US_SCATTER_INSIGHT;
-  } else { const m=VIEW[cur]; $('ctitle').textContent=m.title; $('cdek').textContent=m.dek; $('source').textContent=m.source; $('insight').innerHTML=INSIGHT[cur]; }
+  } else { const m=VIEW[cur]; $('ctitle').textContent=m.title; setDek(m.dek); $('source').textContent=m.source; $('insight').innerHTML=INSIGHT[cur]; }
   document.querySelectorAll('#geopills button').forEach(b=>b.classList.toggle('on',b.dataset.c===continent));
 }
 function syncContext(){
@@ -739,13 +847,21 @@ $('focus').addEventListener('change',e=>{ focusCountry=e.target.value; render();
   if(focusCountry){ setReadout(cur==='divergence'?divReadoutFor(focusCountry):scatterReadoutFor(focusCountry)); }
   else setReadout(''); });
 $('yearSlider').addEventListener('input',e=>{ MODEL.year=+e.target.value; $('yearLabel').textContent=MODEL.year; render(); });
-// Re-render map (height tracks card width) and scatter (label set depends on
-// viewport width) on resize; divergence just reflows; compare is HTML, skip it.
+// Expand/collapse the dek on mobile.
+$('cdek').addEventListener('click',e=>{ if(e.target.closest&&e.target.closest('.dek-toggle')) toggleDek(); });
+$('cdek').addEventListener('keydown',e=>{ if((e.key==='Enter'||e.key===' ')&&e.target.closest&&e.target.closest('.dek-toggle')){ e.preventDefault(); toggleDek(); } });
+
+// Re-render charts on resize so heights and the desktop label set track the new
+// width. Rebuild the dek only when crossing the mobile breakpoint, so an
+// expanded dek is not collapsed by every minor mobile resize (address bar etc.).
+let lastMobile=isMobile();
 window.addEventListener('resize',()=>{
+  const m=isMobile();
+  if(m!==lastMobile){ lastMobile=m; setTexts(); }
   if(cur==='compare') return;
   if(cur==='map') drawMap(mapMetric);
   else if(cur==='scatter') drawScatter();
-  else Plotly.Plots.resize('plot');
+  else if(cur==='divergence') drawDivergence();
 });
 // Safety net for touch: tapping outside the chart clears any tooltip that latched.
 // On the scatters, a tap that is not on a data point also clears the readout; a
