@@ -97,6 +97,15 @@
     .cmp-row-head{display:none;}
     .cmp-place{grid-column:1 / -1; margin-bottom:2px;}
     .ct-controls select{flex:1 1 100%;}
+    /* reclaim the band between controls and plot */
+    .cdek{margin-bottom:8px;}
+    .metricpills{margin-bottom:7px;}
+    .slider{margin-bottom:7px; gap:8px;}
+    /* compact legend and source/note so they wrap to fewer, tighter rows */
+    .legend{font-size:10.5px; gap:6px 10px; margin-top:7px;}
+    .source{font-size:10px; margin-top:9px; padding-top:7px;}
+    .cmp-note{font-size:11.5px; margin-top:10px;}
+    .readout{font-size:12.5px; margin-top:8px;}
   }
 </style>
 </head>
@@ -333,7 +342,9 @@ const isMobile=()=>window.matchMedia('(max-width:560px)').matches;
 // fills it edge to edge.
 function mapHeight(){
   const w=$('plot').clientWidth||card.clientWidth||700;
-  if(isMobile()) return Math.min(Math.max(Math.round(w*1.3),430),620);
+  // Mobile floor lowered to ~the geo's natural rendered aspect so the portrait
+  // box does not add a white letterbox above and below the map.
+  if(isMobile()) return Math.min(Math.max(Math.round(w*1.3),390),620);
   return Math.min(Math.max(Math.round(w*0.62),460),760);
 }
 
@@ -413,7 +424,7 @@ function drawUSMapBar(){
     hovertemplate:'<b>%{y}</b><br>Energy insecurity: %{x}%<extra>RECS, US Census region</extra>',width:0.6};
   const w=$('plot').clientWidth||card.clientWidth||700;
   const h=Math.min(Math.max(Math.round(w*0.5),360),560);
-  const layout={paper_bgcolor:PAPER,plot_bgcolor:PAPER,font:FONT,height:h,margin:{t:10,b:46,l:92,r:72},
+  const layout={paper_bgcolor:PAPER,plot_bgcolor:PAPER,font:FONT,height:h,margin:{t:isMobile()?4:10,b:46,l:92,r:72},
     xaxis:{title:{text:'% reporting energy insecurity (RECS, approx)',font:{size:12}},range:[0,42],gridcolor:GRID,zeroline:false,showline:true,linecolor:'#9fb0b8'},
     yaxis:{automargin:true,tickfont:{size:13.5},categoryorder:'array',categoryarray:order}};
   plot([trace],layout);
@@ -438,13 +449,15 @@ function drawMap(metric){
       colorbar:{title:{text:'%',font:{size:11}},thickness:12,len:0.62,x:0.97,tickfont:{size:10}}};
   }
   // Desktop keeps the wide landscape window; mobile uses a tighter, taller window
-  // so Europe fills the portrait box rather than floating small with side margins.
+  // so Europe fills the portrait box. The east edge (lon 35) and south edge
+  // (lat 34) are held so Cyprus and southern Greece/Crete are never clipped; the
+  // Atlantic (lon) and the sea above Norway (lat 71) are cropped to cut dead margin.
   const mob=isMobile();
-  const layout={paper_bgcolor:PAPER,font:FONT,margin:{t:6,b:0,l:0,r:0},height:mapHeight(),
+  const layout={paper_bgcolor:PAPER,font:FONT,margin:{t:mob?3:6,b:0,l:0,r:0},height:mapHeight(),
     geo:{scope:'europe',resolution:50,showcountries:true,countrycolor:'#fff',showframe:false,
       showcoastlines:false,showland:true,landcolor:'#e7ebec',bgcolor:PANEL,
       projection:{type:'mercator'},
-      lonaxis:{range:mob?[-13,35]:[-26,46]},lataxis:{range:mob?[34,72]:[33,71]}}};
+      lonaxis:{range:mob?[-10,35]:[-26,46]},lataxis:{range:mob?[34,71]:[33,71]}}};
   // dragmode:false (from plot()) plus scrollZoom/doubleClick off keeps the map fixed: no zoom, no pan.
   plot([trace],layout);
 }
@@ -488,6 +501,9 @@ function drawScatter(){
   if(mobile){
     labelPos={};
     pts.forEach(p=>{ if(p.d>=15 && p.name!==finName && p.name!==worst.name) labelPos[p.name]=SCATTER_LABELPOS[p.name]||'top center'; });
+    // Points near the right edge get a left-side label so the full name stays in panel.
+    const xThr=6200-0.15*(6200-200);
+    pts.forEach(p=>{ if((p.name in labelPos)&&p.hdd>xThr) labelPos[p.name]='middle left'; });
   } else {
     const primary={};
     pts.filter(p=>p.d>=8 && p.name!==finName && p.name!==worst.name).forEach(p=>{ primary[p.name]=SCATTER_LABELPOS[p.name]||'top center'; });
@@ -517,7 +533,7 @@ function drawScatter(){
   // Worst-country label points straight up so it never lands on neighbouring labels (Lithuania, the dashed-line note).
   if(worst) ann.push({x:worst.hdd,y:clampY(worst.d),ax:0,ay:-34,text:'<b>'+worst.name+'</b>',font:{size:11,color:'#C8521E'},arrowcolor:'#C8521E',arrowwidth:1.3});
   const xtitle=mobile?'Heating demand (degree days)':'How cold the year is, in heating degree days';
-  const layout={paper_bgcolor:PAPER,plot_bgcolor:PANEL,font:FONT,height:H,margin:{t:14,b:52,l:58,r:18},showlegend:false,
+  const layout={paper_bgcolor:PAPER,plot_bgcolor:PANEL,font:FONT,height:H,margin:{t:mobile?8:14,b:52,l:58,r:18},showlegend:false,
     xaxis:{title:{text:xtitle,font:{size:12.5}},range:[200,6200],showgrid:false,showline:true,linecolor:'#9fb0b8',zeroline:false},
     yaxis:{title:{text:'% unable to keep home adequately warm',font:{size:12.5}},range:[0,30],gridcolor:GRID,zeroline:false,showline:false},
     shapes:[{type:'line',x0:1000,y0:20,x1:6000,y1:2,line:{color:'#a9b7bd',width:1.5,dash:'dash'}}],
@@ -532,17 +548,21 @@ function drawScatter(){
 function drawUSScatter(){
   const mobile=isMobile();
   const r=US_REGIONS;
+  // The US panel gets its own ranges so the four values (23 to 33 percent, about
+  // 1,200 to 3,600 degree days) spread across the panel instead of huddling. All
+  // four fit under 36, so the above-30 triangle clamp is not used here.
+  const XR=[500,4500], YR=[20,36], xThr=XR[1]-0.15*(XR[1]-XR[0]);
   const trace={type:'scatter',mode:'markers+text',
-    x:r.map(d=>d.hddC),y:r.map(d=>clampY(d.ins)),
-    text:r.map(d=>d.name),textposition:r.map(d=>offTop(d.ins)?'bottom center':'top center'),textfont:{size:mobile?9.5:10.5,color:'#3c4750'},
+    x:r.map(d=>d.hddC),y:r.map(d=>d.ins),
+    text:r.map(d=>d.name),textposition:r.map(d=>(mobile&&d.hddC>xThr)?'middle left':'top center'),textfont:{size:mobile?9.5:10.5,color:'#3c4750'},
     customdata:r.map(d=>[d.hddC,d.name,d.ins]),
     hovertemplate:'<b>%{customdata[1]}</b><br>Heating degree days (approx): %{customdata[0]}<br>Energy insecurity: %{customdata[2]}%<extra>US Census region</extra>',
-    marker:{size:17,symbol:r.map(d=>offTop(d.ins)?'triangle-up-open':'circle'),color:US_COLOR,line:{color:'#fff',width:1.6},sizemode:'diameter'}};
+    marker:{size:17,symbol:'circle',color:US_COLOR,line:{color:'#fff',width:1.6},sizemode:'diameter'}};
   const xtitle=mobile?'Heating demand (degree days)':'How cold the year is, in heating degree days';
-  const layout={paper_bgcolor:PAPER,plot_bgcolor:PANEL,font:FONT,height:scatterHeight(),margin:{t:14,b:52,l:58,r:18},showlegend:false,
-    xaxis:{title:{text:xtitle,font:{size:12.5}},range:[200,6200],showgrid:false,showline:true,linecolor:'#9fb0b8',zeroline:false},
-    yaxis:{title:{text:'% reporting energy insecurity (RECS, approx)',font:{size:12.5}},range:[0,30],gridcolor:GRID,zeroline:false,showline:false},
-    annotations:[{x:5900,y:28,text:'US Census regions (indicative)',showarrow:false,font:{size:10.5,color:'#90a0a7'},xanchor:'right'}]};
+  const layout={paper_bgcolor:PAPER,plot_bgcolor:PANEL,font:FONT,height:scatterHeight(),margin:{t:mobile?8:14,b:52,l:58,r:18},showlegend:false,
+    xaxis:{title:{text:xtitle,font:{size:12.5}},range:XR,showgrid:false,showline:true,linecolor:'#9fb0b8',zeroline:false},
+    yaxis:{title:{text:'% reporting energy insecurity (RECS, approx)',font:{size:12.5}},range:YR,gridcolor:GRID,zeroline:false,showline:false},
+    annotations:[{x:4400,y:35,text:'US Census regions (indicative)',showarrow:false,font:{size:10.5,color:'#90a0a7'},xanchor:'right'}]};
   plot([trace],layout).then(gd=>{ gd.on('plotly_click',ev=>{ setReadout(scatterReadoutFor(clickName(ev.points[0]))); }); });
 }
 
@@ -592,6 +612,10 @@ function drawDivergence(){
   let labelPos;
   if(mobile){
     labelPos={}; pts.forEach(p=>{ if(labeled(p)) labelPos[p.name]=LABELPOS[p.name]||'top center'; });
+    // Near the right edge (incl. Finland/Slovakia), flip to a left label so the
+    // full name stays inside the narrow panel instead of clipping off the right.
+    const xThr=20.7-0.20*(20.7-16.4);
+    pts.forEach(p=>{ if((p.name in labelPos)&&p.tado>xThr) labelPos[p.name]='middle left'; });
   } else {
     const primary={}; pts.filter(labeled).forEach(p=>{ primary[p.name]=LABELPOS[p.name]||'top center'; });
     const reserved=[
@@ -609,7 +633,10 @@ function drawDivergence(){
     marker:{size:11,color:pts.map(p=>REGION_COLOR[p.region]||'#006BA2'),line:{color:'#fff',width:1.5}},
     hovertemplate:'<b>%{customdata}</b><br>Smart-home indoor temp: %{x:.2f}\u00b0C<br>Population unable to keep warm: %{y}%<extra></extra>',showlegend:false};
   const traces=[trace];
-  const layout={paper_bgcolor:PAPER,plot_bgcolor:PANEL,font:FONT,height:H,margin:{t:16,b:54,l:58,r:38},showlegend:false,
+  // WHO label stays above the plot (its top margin is preserved); the divergence
+  // has no pills or slider above it, so its band is already tight.
+  const whoAnn={x:18,y:21.5,yanchor:'bottom',text:'WHO 18\u00b0C benchmark',showarrow:false,font:{size:mobile?10:10.5,color:'#C8521E'},xanchor:'center'};
+  const layout={paper_bgcolor:PAPER,plot_bgcolor:PANEL,font:FONT,height:H,margin:{t:mobile?14:16,b:54,l:58,r:38},showlegend:false,
     xaxis:{title:{text:'Indoor temperature in smart-thermostat homes (\u00b0C)',font:{size:12.5}},range:[16.4,20.7],dtick:1,showgrid:false,showline:true,linecolor:'#9fb0b8',zeroline:false},
     yaxis:{title:{text:'% of population unable to keep home warm',font:{size:12.5}},range:[-1.6,21.5],gridcolor:GRID,zeroline:false,showline:false},
     shapes:[
@@ -618,7 +645,7 @@ function drawDivergence(){
       {type:'line',x0:16.6,x1:20.5,y0:18,y1:1,line:{color:'#a9b7bd',width:1.5,dash:'dash'}}
     ],
     annotations:[
-      {x:18,y:21.5,yanchor:'bottom',text:'WHO 18\u00b0C benchmark',showarrow:false,font:{size:10.5,color:'#C8521E'},xanchor:'center'},
+      whoAnn,
       {x:19.55,y:20.6,text:'Warm thermostats, cold populations',showarrow:false,font:{size:11,color:'#A8431B'},xanchor:'center'},
       {x:16.45,y:19.4,text:'expected:<br>warmer homes,<br>fewer left cold',showarrow:false,font:{size:10,color:'#90a0a7'},xanchor:'left',align:'left'}
     ]};
