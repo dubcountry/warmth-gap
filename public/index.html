@@ -109,10 +109,10 @@
 
   <nav class="controls">
     <div class="tabs" id="tabs">
-      <button data-view="map" class="on">Who stays warm</button>
-      <button data-view="scatter">Is climate to blame?</button>
-      <button data-view="compare">Same question?</button>
-      <button data-view="divergence">Warm for whom?</button>
+      <button data-view="map" class="on">The cold map</button>
+      <button data-view="scatter">Climate vs comfort</button>
+      <button data-view="compare">Different questions</button>
+      <button data-view="divergence">The comfort gap</button>
     </div>
     <label class="focus" id="focusWrap">Highlight
       <select id="focus"><option value="">a country</option></select>
@@ -223,40 +223,40 @@ const US_REGIONS=[
   {name:'South',     ins:33, hddC:1200},
   {name:'West',      ins:25, hddC:1800},
 ];
-const US_MAP_META={title:'US energy insecurity by region',
-  dek:'Share of US households reporting any energy insecurity (RECS), by the four Census regions. This is a broader measure than the EU "unable to keep warm" and sits on its own scale, so do not read these colours as identical to the Europe map.',
+const US_MAP_META={title:'Where the US struggles to stay warm',
+  dek:'The four US Census regions, shaded by the share of households that report energy insecurity in the federal RECS survey. This is a broader measure than the European one, so the regions are best compared with each other rather than read against Europe.',
   source:'Source: EIA Residential Energy Consumption Survey (RECS), four US Census regions. Approximate.',
-  insight:'Even inside one country the mildest region, the South, reports the most energy insecurity, and the colder Northeast reports the least. As in Europe, who stays warm tracks income and housing, not just how cold it gets.'};
-const US_SCATTER_DEK='The four US Census regions on the same axes. The vertical axis here is energy insecurity (RECS), a broader measure than the EU unable-to-keep-warm, and the US heating degree days are approximate, converted from the Fahrenheit base. So these points are indicative, not a like-for-like overlay on the European countries.';
-const US_SCATTER_INSIGHT='The US pattern rhymes with Europe. The South is the mildest of the four regions yet reports the most energy insecurity, while the colder Northeast reports the least. Climate sets the heating need, but income and housing decide who actually stays warm.';
+  insight:'Across the four regions, the warm South reports the most energy insecurity and the cooler Northeast the least. As in Europe, how cold a region is matters less than how much its households earn and how their homes are built.'};
+const US_SCATTER_DEK='The four US Census regions on the same axes, with energy insecurity up the side and heating demand along the bottom. The mild South reports the most hardship and the colder Northeast the least, the same pattern seen across Europe, where the mildest places struggle most. The figures are approximate and use a broader US measure, so read them as indicative.';
+const US_SCATTER_INSIGHT='The United States shows the same pattern as Europe. The South has the mildest winters of the four regions yet reports the most energy insecurity, and the colder Northeast the least. Climate sets how much heat a home needs; income and housing decide who can afford it.';
 
 const MAP_META={
   warm:{title:'Where Europe cannot keep warm',
-    dek:'Share of people unable to keep their home adequately warm. Grey countries do not report for the selected year.',
+    dek:'The map shades each country by the share of people who cannot keep their home adequately warm, from the latest Eurostat survey; countries in grey did not report that year. The deepest colours fall across the mild Mediterranean rather than the cold north.',
     source:'Source: Eurostat (ilc_mdes01).',
-    insight:'Read the colour, not the latitude. The Mediterranean rim runs dark while the cold Nordic and Baltic north stays pale. Bulgaria and Greece land darkest because low income and old housing decide who can keep warm, not the climate.'},
+    insight:'The deepest colours run along the Mediterranean, while the cold Nordic and Baltic countries stay pale. Bulgaria and Greece are darkest not because their winters are harsh but because low incomes and old, poorly insulated housing leave many people unable to afford enough heat.'},
   tado:{title:'Where Europe keeps homes warmest',
-    dek:'Average indoor temperature in smart-thermostat homes, winter 2025-26. Deeper orange means a warmer home and a larger heating bill against the WHO 18\u00b0C benchmark.',
+    dek:'The map shades each country by the average winter temperature inside smart-thermostat homes, from tado\'s 2026 report. Because these devices belong mostly to wealthier households, the map shows how warm a comfortable minority keep their rooms, not the typical home.',
     source:'Source: tado\u00b0 \u201cThe Cost of Comfort\u201d appendix, Feb 2026. Smart-thermostat homes only, which skew affluent.',
-    insight:'Now flip the metric. The same Mediterranean countries that were darkest for hardship glow warm here: Greece, Spain and Portugal all sit near or above 19\u00b0C. The catch is that tado only sees the minority who own a smart thermostat. Warmth for them is not warmth for everyone, which is the whole gap.'}
+    insight:'On this measure the southern countries that struggle most with hardship, Greece, Spain and Portugal, record some of the warmest indoor temperatures, near or above 19C. The data covers only homes with smart thermostats, which tend to belong to wealthier households, so it reflects the comfort of a minority rather than the country as a whole.'}
 };
 
 const VIEW={
   scatter:{title:'Cold climates, warm homes',
-    dek:'Heating degree days against the share unable to keep warm. Bubble size shows GDP per capita. The dashed line is what intuition predicts. Heating degree days add up how far each day falls below a comfort threshold over the year, so a high number means a long, cold heating season (Finland near 5000) and a low one means barely any (Cyprus near 600). Values above 30 percent (mostly early years) are pinned to the top; tap them for the real figure.',
+    dek:'Each bubble is a country, set by how cold its winters are from left to right and by the share of people who cannot keep warm from bottom to top; bubble size is income per person. The cold is measured in heating degree days, a single figure for how much heating a winter demands: each day adds the number of degrees it sits below 18C, so Finland totals about 5,000 over a year and Cyprus about 600, and it is not a count of days. If cold weather drove hardship the bubbles would climb to the right along the dashed line, but instead they fall, because the countries that struggle most are the mild, lower-income south. A few very high early-year values are pinned to the top edge; tap them for the real number.',
     source:'Source: Eurostat (ilc_mdes01, nrg_chdd_a, nama_10_pc).', focus:true},
   compare:{title:'Three places, three different questions',
-    dek:'The headline shares look far apart, but each place is answering a different survey question. Match the question and they move much closer.',
+    dek:'The headline shares look far apart, but each place is answering a different survey question. Lined up against the same question, the three move much closer together.',
     source:'Source: Eurostat; EIA RECS 2020 and 2024; Statistics Canada.', focus:false},
-  divergence:{title:'Warm for whom?',
-    dek:'Indoor temperature in smart-thermostat homes against the share of the whole population unable to keep warm. The two diverge most where comfort is a luxury.',
+  divergence:{title:'Warm homes, cold populations',
+    dek:'Each country is placed by how warm its smart-thermostat homes are from left to right against how many of its people cannot keep warm from bottom to top. Countries in the shaded upper right run warm homes for a connected few while much of the population stays cold.',
     source:'Source: tado\u00b0 appendix (Feb 2026, smart-thermostat homes, an affluent subset) and Eurostat ilc_mdes01.', focus:true},
 };
 
 const INSIGHT={
-  scatter:'The points slope down to the right, the opposite of the intuition that colder countries struggle more. Bubble size is income, and it tracks the vertical axis more closely than the horizontal one. Finland is the coldest country and the most comfortable. Greece, Spain and Bulgaria are the mildest and the least.',
-  compare:'The headline gap is mostly an illusion of three different survey questions. Match the question and it shrinks: the US unsafe-temperature figure sits near the EU number, and Canada\u2019s winter-comfort dissatisfaction is the highest of the three. And the coldest place in each country, Finland, Vermont and Nunavut, is the least affected.',
-  divergence:'Finland and Bulgaria heat their measured homes to the same 20\u00b0C, yet only a few percent of Finns and roughly a fifth of Bulgarians cannot keep warm. Greece, Spain and Portugal join Bulgaria in the shaded corner: warm thermostats, cold populations. The smart-thermostat data only sees the affluent minority, so the higher a country sits, the wider the gap between the comfort of the connected few and the cold of everyone else.'
+  scatter:'The bubbles fall from left to right, against the idea that colder countries find it hardest to stay warm. Income, shown by bubble size, lines up with hardship more closely than climate does: Finland has the coldest winters and among the fewest cold homes, while the milder, lower-income south, Greece, Spain and Bulgaria, has the most.',
+  compare:'The headline gap is largely a product of three different survey questions. Matched against the same question it narrows sharply: the US figure for homes kept at an unsafe temperature sits close to the EU number, and Canada\'s dissatisfaction with winter warmth is the highest of the three. In each country the coldest place, Finland, Vermont and Nunavut, is the least affected.',
+  divergence:'Finland and Bulgaria heat their measured homes to about the same 20C, yet only a small share of Finns cannot keep warm against roughly a fifth of Bulgarians. Greece, Spain and Portugal join Bulgaria in the shaded corner, where comfortable thermostats sit above large numbers of people who cannot keep warm. Because the data sees only affluent, connected homes, a country\'s position higher up the chart marks a wider gap between the comfort of the few and the cold of the many.'
 };
 
 // ---- data model ----
@@ -426,7 +426,7 @@ function drawScatter(){
   if(fin) ann.push({x:fin.hdd,y:clampY(fin.d),ax:-8,ay:-42,text:'<b>Finland</b>',font:{size:11,color:'#1A476F'},arrowcolor:'#1A476F',arrowwidth:1.3});
   // Worst-country label points straight up so it never lands on neighbouring labels (Lithuania, the dashed-line note).
   if(worst) ann.push({x:worst.hdd,y:clampY(worst.d),ax:0,ay:-34,text:'<b>'+worst.name+'</b>',font:{size:11,color:'#C8521E'},arrowcolor:'#C8521E',arrowwidth:1.3});
-  const xtitle=mobile?'Heating degree days':'Heating degree days (colder country to the right)';
+  const xtitle=mobile?'Heating demand (degree days)':'How cold the year is, in heating degree days';
   const layout={paper_bgcolor:PAPER,plot_bgcolor:PANEL,font:FONT,height:510,margin:{t:14,b:52,l:58,r:18},showlegend:false,
     xaxis:{title:{text:xtitle,font:{size:12.5}},range:[200,6200],showgrid:false,showline:true,linecolor:'#9fb0b8',zeroline:false},
     yaxis:{title:{text:'% unable to keep home adequately warm',font:{size:12.5}},range:[0,30],gridcolor:GRID,zeroline:false,showline:false},
@@ -448,7 +448,7 @@ function drawUSScatter(){
     customdata:r.map(d=>[d.hddC,d.name,d.ins]),
     hovertemplate:'<b>%{customdata[1]}</b><br>Heating degree days (approx): %{customdata[0]}<br>Energy insecurity: %{customdata[2]}%<extra>US Census region</extra>',
     marker:{size:17,symbol:r.map(d=>offTop(d.ins)?'triangle-up-open':'circle'),color:US_COLOR,line:{color:'#fff',width:1.6},sizemode:'diameter'}};
-  const xtitle=mobile?'Heating degree days (approx)':'Heating degree days, Celsius base (approx)';
+  const xtitle=mobile?'Heating demand (degree days)':'How cold the year is, in heating degree days';
   const layout={paper_bgcolor:PAPER,plot_bgcolor:PANEL,font:FONT,height:510,margin:{t:14,b:52,l:58,r:18},showlegend:false,
     xaxis:{title:{text:xtitle,font:{size:12.5}},range:[200,6200],showgrid:false,showline:true,linecolor:'#9fb0b8',zeroline:false},
     yaxis:{title:{text:'% reporting energy insecurity (RECS, approx)',font:{size:12.5}},range:[0,30],gridcolor:GRID,zeroline:false,showline:false},
