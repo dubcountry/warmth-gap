@@ -68,6 +68,11 @@
   /* the map div is sized in JS; this guarantees the insight below always clears it */
   #plot{margin-bottom:8px;}
   .insight{clear:both;}
+  /* "What the cold costs" small multiples: cold and heat side by side */
+  .mort-maps{display:grid; grid-template-columns:1fr 1fr; gap:18px; margin:0 0 8px;}
+  .sm-map{min-width:0;}
+  .sm-title{font-size:13.5px; font-weight:700; color:var(--ink); letter-spacing:-0.01em; margin:0 0 5px;}
+  .sm-plot{width:100%; min-height:300px;}
   /* "Same question?" matched-vs-headline strip (plain HTML, no chart) */
   .cmp-prose{font-size:14.5px; line-height:1.6; color:#2b2f36; margin:2px 0 16px; max-width:780px;}
   .cmp-row{display:grid; grid-template-columns:1.15fr 1fr 1fr; gap:12px; padding:11px 0; border-top:1px solid var(--line); align-items:start;}
@@ -97,6 +102,7 @@
     .cmp-row-head{display:none;}
     .cmp-place{grid-column:1 / -1; margin-bottom:2px;}
     .ct-controls select{flex:1 1 100%;}
+    .mort-maps{grid-template-columns:1fr; gap:14px;}
     /* reclaim the band between controls and plot */
     .cdek{margin-bottom:8px;}
     .metricpills{margin-bottom:7px;}
@@ -145,15 +151,15 @@
       <button data-m="warm" class="on">Cannot keep warm</button>
       <button data-m="tado">Indoor warmth</button>
     </div>
-    <div class="metricpills" id="deathpills" style="display:none">
-      <button data-d="cold" class="on">Cold</button>
-      <button data-d="heat">Heat</button>
-    </div>
     <div class="slider" id="sliderWrap" style="display:none">
       Year <input type="range" id="yearSlider"><b id="yearLabel"></b>
     </div>
     <div id="plot"></div>
     <div id="compareHTML" style="display:none"></div>
+    <div class="mort-maps" id="mortalityMaps" style="display:none">
+      <div class="sm-map"><div class="sm-title" id="mortColdTitle"></div><div class="sm-plot" id="mortCold"></div></div>
+      <div class="sm-map"><div class="sm-title" id="mortHeatTitle"></div><div class="sm-plot" id="mortHeat"></div></div>
+    </div>
     <p class="readout" id="readout" style="display:none"></p>
     <div class="legend" id="legend"></div>
     <p class="source" id="source"></p>
@@ -309,7 +315,7 @@ const MORT_META={
 
 // ---- data model ----
 let MODEL={real:false, year:2024, years:[2024], byIso:{}};
-let cur='map', mapMetric='warm', focusCountry='', continent='eu', deathMetric='cold';
+let cur='map', mapMetric='warm', focusCountry='', continent='eu';
 
 const $=id=>document.getElementById(id);
 const card=$('card'), legend=$('legend');
@@ -343,10 +349,11 @@ const ringTrace=(x,y)=>({type:'scatter',mode:'markers',x:[x],y:[y],hoverinfo:'sk
 // scroll/double-click zoom, no drag pan, and hover-only tooltips that never
 // latch (hovermode 'closest', dragmode off). Maps and scatters all share this.
 const PLOT_CONFIG={displayModeBar:false, scrollZoom:false, doubleClick:false, responsive:true};
-function plot(traces, layout){
+function plotTarget(id, traces, layout){
   layout=Object.assign({hovermode:'closest', dragmode:false}, layout);
-  return Plotly.newPlot('plot', traces, layout, PLOT_CONFIG);
+  return Plotly.newPlot(id, traces, layout, PLOT_CONFIG);
 }
+function plot(traces, layout){ return plotTarget('plot', traces, layout); }
 
 // ---- tap readout: figures shown on tap, the touch stand-in for the hover ----
 function setReadout(html){ const el=$('readout'); if(el) el.innerHTML=html||''; }
@@ -496,31 +503,49 @@ function drawMap(metric){
   plot([trace],layout);
 }
 
-// "What the cold costs": one choropleth of temperature-attributable deaths (%).
-// Cold and heat share a single colour scale WITHIN a region (so toggling to heat
-// goes pale and the toggle itself carries the "cold kills far more" point), while
-// Europe and North America keep SEPARATE scales (different studies) by each using
-// its own cold maximum as zmax.
-function drawMortality(){
-  const isNA=continent==='na';
+// "What the cold costs": two small-multiple choropleths, cold and heat, for the
+// selected region. CRITICAL: both maps share one colour-scale domain, 0 to the
+// region's COLD maximum, so heat reads pale next to cold (that is the message).
+// Cold is a blue sequential ramp, heat an orange-red one, both darker = worse.
+const COLD_SCALE=[[0,'#eef2f5'],[0.5,'#5a9bc9'],[1,'#12304b']];
+const HEAT_SCALE=[[0,'#eef0e9'],[0.5,'#e8896a'],[1,'#c1110b']];
+function smallMapHeight(id, isNA){
+  const w=$(id).clientWidth||$('plot').clientWidth||card.clientWidth||300;
+  // Europe is portrait-ish in a narrow column; North America is landscape, so shorter.
+  const h=Math.round(w*(isNA?0.82:1.22));
+  return Math.min(Math.max(h,300),560);
+}
+function drawMortMap(id, metric, scale, zmax, isNA){
   const data=isNA?MORT.northAmerica:MORT.europe;
   const locs=Object.keys(data);
-  const zmax=Math.max(...locs.map(k=>data[k].cold), 1);
-  const mlabel=deathMetric==='cold'?'Cold':'Heat';
+  const mlabel=metric==='cold'?'Cold':'Heat';
   const trace={type:'choropleth',locationmode:'ISO-3',locations:locs,
-    z:locs.map(k=>data[k][deathMetric]),text:locs.map(k=>data[k].name),
+    z:locs.map(k=>data[k][metric]),text:locs.map(k=>data[k].name),
     hovertemplate:'<b>%{text}</b><br>'+mlabel+'-attributable deaths: %{z:.2f}% of all deaths<extra></extra>',
-    colorscale:[[0,'#eef0e9'],[0.5,'#e8896a'],[1,'#c1110b']],zmin:0,zmax:zmax,
-    marker:{line:{color:'#fff',width:0.8}},
-    colorbar:{title:{text:'%',font:{size:11}},thickness:12,len:0.62,x:0.97,tickfont:{size:10}}};
+    colorscale:scale,zmin:0,zmax:zmax,
+    marker:{line:{color:'#fff',width:0.6}},
+    colorbar:{title:{text:'%',font:{size:10}},thickness:9,len:0.7,x:1.0,tickfont:{size:9}}};
   const mob=isMobile();
   const geoBase={resolution:50,showcountries:true,countrycolor:'#fff',showframe:false,
     showcoastlines:false,showland:true,landcolor:'#e7ebec',bgcolor:PANEL,projection:{type:'mercator'}};
   const geo=isNA
     ? Object.assign({scope:'north america',lonaxis:{range:[-140,-52]},lataxis:{range:[23,72]}},geoBase)
-    : Object.assign({scope:'europe',lonaxis:{range:mob?[-10,35]:[-26,46]},lataxis:{range:mob?[34,71]:[33,71]}},geoBase);
-  const layout={paper_bgcolor:PAPER,font:FONT,margin:{t:mob?3:6,b:0,l:0,r:0},height:mapHeight(),geo:geo};
-  plot([trace],layout);
+    : Object.assign({scope:'europe',lonaxis:{range:mob?[-10,35]:[-12,36]},lataxis:{range:[34,71]}},geoBase);
+  const layout={paper_bgcolor:PAPER,font:FONT,margin:{t:mob?2:4,b:0,l:0,r:0},height:smallMapHeight(id,isNA),geo:geo};
+  plotTarget(id,[trace],layout);
+}
+function drawMortality(){
+  const isNA=continent==='na';
+  const data=isNA?MORT.northAmerica:MORT.europe;
+  const locs=Object.keys(data);
+  // Shared domain ceiling = region's cold maximum. Heat is plotted on the same
+  // domain so it never rescales to its own (much smaller) maximum.
+  const zmax=Math.max(...locs.map(k=>data[k].cold), 1);
+  const heatMax=Math.max(...locs.map(k=>data[k].heat), 0);
+  $('mortColdTitle').textContent='Cold, up to '+round1(zmax)+'% of deaths';
+  $('mortHeatTitle').textContent='Heat, up to '+round1(heatMax)+'% of deaths';
+  drawMortMap('mortCold','cold',COLD_SCALE,zmax,isNA);
+  drawMortMap('mortHeat','heat',HEAT_SCALE,zmax,isNA);
 }
 
 // Explicit label sides for the crowded points so labels do not stack. Finland
@@ -733,8 +758,8 @@ function setLegend(){
       +'<span style="color:#90a0a7">Dotted orange line: WHO 18\u00b0C benchmark</span>';
   } else if(cur==='mortality'){
     const reg=continent==='na'?'US and Canada':'Europe';
-    legend.innerHTML='<span style="color:#90a0a7">Darker red: larger share of deaths from '
-      +(deathMetric==='cold'?'cold':'heat')+'. '+reg+', on its own scale (see Explanation)</span>';
+    legend.innerHTML='<span><i style="background:#12304b"></i>Cold</span><span><i style="background:#c1110b"></i>Heat</span>'
+      +'<span style="color:#90a0a7">Both maps share one scale, 0 to cold\'s maximum for '+reg+', so heat reads pale. See Explanation.</span>';
   } else {
     legend.innerHTML='';
   }
@@ -743,13 +768,14 @@ function setLegend(){
 function render(){
   // The "Same question?" view is plain HTML, not a Plotly chart, so swap the
   // chart div out for the compare markup and skip Plotly entirely.
-  const isCompare=cur==='compare';
-  $('plot').style.display=isCompare?'none':'';
+  const isCompare=cur==='compare', isMort=cur==='mortality';
+  $('plot').style.display=(isCompare||isMort)?'none':'';
   $('compareHTML').style.display=isCompare?'':'none';
+  $('mortalityMaps').style.display=isMort?'':'none';
   if(isCompare){ $('compareHTML').innerHTML=buildCompareHTML(); return; }
+  if(isMort){ drawMortality(); return; }
   if(cur==='map')drawMap(mapMetric);
   else if(cur==='scatter')drawScatter();
-  else if(cur==='mortality')drawMortality();
   else drawDivergence();
 }
 
@@ -771,7 +797,6 @@ function setTexts(){
       ? 'US and Canada: Gasparrini et al. 2015, via Our World in Data'
       : 'Europe: Masselot et al. 2023 (corrected)';
     $('insight').innerHTML=MORT_META.insight;
-    document.querySelectorAll('#deathpills button').forEach(b=>b.classList.toggle('on',b.dataset.d===deathMetric));
   } else { const m=VIEW[cur]; $('ctitle').textContent=m.title; setDek(m.dek); $('source').textContent=m.source; $('insight').innerHTML=INSIGHT[cur]; }
   document.querySelectorAll('#geopills button').forEach(b=>b.classList.toggle('on',b.dataset.c===continent));
 }
@@ -781,8 +806,6 @@ function syncContext(){
   // map; tado and divergence are Europe-only, so it stays hidden there.
   const showGeo=(cur==='map'&&mapMetric==='warm')||onScatter||cur==='mortality';
   $('geopills').style.display = showGeo?'flex':'none';
-  // Cold/Heat toggle is the mortality view's own control.
-  $('deathpills').style.display = (cur==='mortality')?'flex':'none';
   // Metric (warm/tado) only applies to the European map; the US layer has one measure.
   $('metricpills').style.display = (cur==='map'&&continent==='eu')?'flex':'none';
   $('focusWrap').style.display = (onScatter||cur==='divergence')?'flex':'none';
@@ -954,8 +977,6 @@ $('metricpills').addEventListener('click',e=>{ if(e.target.dataset.m){ mapMetric
   setTexts(); syncContext(); setLegend(); render(); } });
 $('geopills').addEventListener('click',e=>{ if(e.target.dataset.c){ continent=e.target.dataset.c;
   setReadout(''); setTexts(); syncContext(); setLegend(); render(); } });
-$('deathpills').addEventListener('click',e=>{ if(e.target.dataset.d){ deathMetric=e.target.dataset.d;
-  setTexts(); syncContext(); setLegend(); render(); } });
 $('focus').addEventListener('change',e=>{ focusCountry=e.target.value; render();
   if(focusCountry){ setReadout(cur==='divergence'?divReadoutFor(focusCountry):scatterReadoutFor(focusCountry)); }
   else setReadout(''); });
