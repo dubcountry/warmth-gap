@@ -73,6 +73,18 @@
   .sm-map{min-width:0;}
   .sm-title{font-size:13.5px; font-weight:700; color:var(--ink); letter-spacing:-0.01em; margin:0 0 5px;}
   .sm-plot{width:100%; min-height:300px;}
+  /* tab-scoped controls: highlight, reset, share (low clutter, site styling) */
+  #mortControls{margin:0 0 12px;}
+  .mort-bar{display:flex; align-items:center; flex-wrap:wrap; gap:10px 16px;}
+  .mort-bar .focus{margin-left:0;}
+  .mort-actions{display:flex; align-items:center; flex-wrap:wrap; gap:4px 14px; margin-left:auto;}
+  .mort-link{border:0; background:transparent; padding:0; font:inherit; font-size:12px; font-weight:600;
+    color:var(--grey); text-transform:uppercase; letter-spacing:.06em; cursor:pointer; text-decoration:none;}
+  .mort-link:hover{color:var(--ink);}
+  a.mort-link{text-transform:none; letter-spacing:0; font-weight:600;}
+  .mort-copied{font-size:11px; color:var(--teal); font-weight:700;}
+  .mort-readout{margin-top:10px;}
+  @media (max-width:560px){ .mort-actions{margin-left:0;} }
   /* "Same question?" matched-vs-headline strip (plain HTML, no chart) */
   .cmp-prose{font-size:14.5px; line-height:1.6; color:#2b2f36; margin:2px 0 16px; max-width:780px;}
   .cmp-row{display:grid; grid-template-columns:1.15fr 1fr 1fr; gap:12px; padding:11px 0; border-top:1px solid var(--line); align-items:start;}
@@ -133,7 +145,7 @@
       <button data-view="scatter">Climate vs comfort</button>
       <button data-view="compare">Different questions</button>
       <button data-view="divergence">The comfort gap</button>
-      <button data-view="mortality">What the cold costs</button>
+      <button data-view="mortality">Deaths attributable to cold vs heat</button>
     </div>
     <label class="focus" id="focusWrap">Highlight
       <select id="focus"><option value="">a country</option></select>
@@ -156,6 +168,22 @@
     </div>
     <div id="plot"></div>
     <div id="compareHTML" style="display:none"></div>
+    <div id="mortControls" style="display:none">
+      <div class="mort-bar">
+        <label class="focus mort-focus">Highlight
+          <select id="mortFocus" aria-label="Highlight a country"><option value="">a country</option></select>
+        </label>
+        <div class="mort-actions">
+          <button class="mort-link" id="mortReset" type="button">Reset view</button>
+          <button class="mort-link" id="mortCopy" type="button">Copy link</button>
+          <button class="mort-link" id="mortShareBtn" type="button" style="display:none">Share</button>
+          <a class="mort-link" id="mortX" target="_blank" rel="noopener">Post on X</a>
+          <a class="mort-link" id="mortLI" target="_blank" rel="noopener">LinkedIn</a>
+          <span class="mort-copied" id="mortCopied" aria-live="polite"></span>
+        </div>
+      </div>
+      <p class="readout mort-readout" id="mortReadout"></p>
+    </div>
     <div class="mort-maps" id="mortalityMaps" style="display:none">
       <div class="sm-map"><div class="sm-title" id="mortColdTitle"></div><div class="sm-plot" id="mortCold"></div></div>
       <div class="sm-map"><div class="sm-title" id="mortHeatTitle"></div><div class="sm-plot" id="mortHeat"></div></div>
@@ -291,11 +319,11 @@ const INSIGHT={
 // scripts/mortality_pull.py); this embedded subset is the offline fallback.
 const MORT_SAMPLE={
   europe:{
-    IRL:{name:'Ireland',cold:12.47,heat:0.06}, ROU:{name:'Romania',cold:9.63,heat:0.86},
-    GBR:{name:'United Kingdom',cold:9.48,heat:0.16}, BGR:{name:'Bulgaria',cold:8.70,heat:0.81},
-    FIN:{name:'Finland',cold:8.94,heat:0.28}, GRC:{name:'Greece',cold:6.90,heat:1.12},
-    ITA:{name:'Italy',cold:6.28,heat:1.47}, ESP:{name:'Spain',cold:5.02,heat:0.88},
-    DEU:{name:'Germany',cold:3.92,heat:0.65}, NLD:{name:'Netherlands',cold:3.30,heat:0.55}
+    IRL:{name:'Ireland',cold:12.47,heat:0.06,srCold:149,srHeat:1}, ROU:{name:'Romania',cold:9.63,heat:0.86,srCold:185,srHeat:16},
+    GBR:{name:'United Kingdom',cold:9.48,heat:0.16,srCold:121,srHeat:2}, BGR:{name:'Bulgaria',cold:8.70,heat:0.81,srCold:175,srHeat:16},
+    FIN:{name:'Finland',cold:8.94,heat:0.28,srCold:106,srHeat:3}, GRC:{name:'Greece',cold:6.90,heat:1.12,srCold:86,srHeat:14},
+    ITA:{name:'Italy',cold:6.28,heat:1.47,srCold:68,srHeat:16}, ESP:{name:'Spain',cold:5.02,heat:0.88,srCold:53,srHeat:9},
+    DEU:{name:'Germany',cold:3.92,heat:0.65,srCold:49,srHeat:8}, NLD:{name:'Netherlands',cold:3.30,heat:0.55,srCold:42,srHeat:6}
   },
   northAmerica:{
     USA:{name:'United States',cold:5.60,heat:0.35}, CAN:{name:'Canada',cold:4.46,heat:0.53}
@@ -304,18 +332,20 @@ const MORT_SAMPLE={
 let MORT=MORT_SAMPLE; // replaced by the data file in boot() if it loads
 
 const MORT_META={
-  title:'What the cold costs',
-  dek:'Across Europe and North America, cold causes a far larger share of deaths than heat, in every region shown. '
-    +'The two regions come from different studies and sit on separate colour scales, so read them as a broad pattern rather than exact, like-for-like numbers. '
-    +'Europe is Masselot et al. 2023 in Lancet Planetary Health, the corrected series (Zenodo 10.5281/zenodo.10288665), covering the urban population aged 20 and over from 2000 to 2019. '
-    +'North America is Gasparrini et al. 2015, national figures as a share of all deaths. '
-    +'In every region cold-attributable mortality runs well above heat, including in warm places like the US South.',
+  title:'Deaths attributable to cold vs heat',
+  dek:'\'Attributable\' deaths are the share of all deaths in a year that researchers estimate would not have happened if outdoor temperatures had stayed near the locally comfortable level. '
+    +'It counts the heart, stroke and respiratory deaths that cold or heat tips over the edge, not only hypothermia or heatstroke, which is why these shares are larger than official cold or heat death tolls. '
+    +'In every region shown, cold accounts for a far larger share than heat. '
+    +'In Europe that is roughly 130,000 cold deaths a year against 13,600 from heat, about 83 versus 9 per 100,000 people. '
+    +'Europe is Masselot et al. 2023 (corrected, Zenodo 10.5281/zenodo.10288665), urban population aged 20 and over, 2000 to 2019. '
+    +'North America is Gasparrini et al. 2015, national, as a share of all deaths. '
+    +'The two regions come from different studies on separate colour scales, so read them as a broad pattern, not exact like-for-like numbers.',
   insight:'Cold\'s share of temperature-related deaths runs several times heat\'s across both regions, and the pattern holds even where winters are mild. Latitude does not protect against cold so much as income, housing and health systems do.'
 };
 
 // ---- data model ----
 let MODEL={real:false, year:2024, years:[2024], byIso:{}};
-let cur='map', mapMetric='warm', focusCountry='', continent='eu';
+let cur='map', mapMetric='warm', focusCountry='', continent='eu', mortHighlight='';
 
 const $=id=>document.getElementById(id);
 const card=$('card'), legend=$('legend');
@@ -349,11 +379,18 @@ const ringTrace=(x,y)=>({type:'scatter',mode:'markers',x:[x],y:[y],hoverinfo:'sk
 // scroll/double-click zoom, no drag pan, and hover-only tooltips that never
 // latch (hovermode 'closest', dragmode off). Maps and scatters all share this.
 const PLOT_CONFIG={displayModeBar:false, scrollZoom:false, doubleClick:false, responsive:true};
-function plotTarget(id, traces, layout){
-  layout=Object.assign({hovermode:'closest', dragmode:false}, layout);
-  return Plotly.newPlot(id, traces, layout, PLOT_CONFIG);
+// The mortality maps are the one place we ALLOW zoom and pan: scroll/pinch zoom,
+// drag to pan, a hover modebar with just zoom in/out and reset (geo has no
+// lasso/select/autoscale to remove), no Plotly logo.
+const MORT_CONFIG={responsive:true, scrollZoom:true, displaylogo:false,
+  displayModeBar:'hover', modeBarButtons:[['zoomInGeo','zoomOutGeo','resetGeo']]};
+function plotTarget(id, traces, layout, config){
+  return Plotly.newPlot(id, traces, layout, config||PLOT_CONFIG);
 }
-function plot(traces, layout){ return plotTarget('plot', traces, layout); }
+function plot(traces, layout){
+  layout=Object.assign({hovermode:'closest', dragmode:false}, layout);
+  return plotTarget('plot', traces, layout, PLOT_CONFIG);
+}
 
 // ---- tap readout: figures shown on tap, the touch stand-in for the hover ----
 function setReadout(html){ const el=$('readout'); if(el) el.innerHTML=html||''; }
@@ -508,7 +545,7 @@ function drawMap(metric){
 // region's COLD maximum, so heat reads pale next to cold (that is the message).
 // Cold is a blue sequential ramp, heat an orange-red one, both darker = worse.
 const COLD_SCALE=[[0,'#eef2f5'],[0.5,'#5a9bc9'],[1,'#12304b']];
-const HEAT_SCALE=[[0,'#eef0e9'],[0.5,'#e8896a'],[1,'#c1110b']];
+const HEAT_SCALE=[[0,'#f6efe6'],[0.5,'#f0901f'],[1,'#cf3b1c']];
 function smallMapHeight(id, isNA){
   const w=$(id).clientWidth||$('plot').clientWidth||card.clientWidth||300;
   // Europe is portrait-ish in a narrow column; North America is landscape, so shorter.
@@ -519,20 +556,34 @@ function drawMortMap(id, metric, scale, zmax, isNA){
   const data=isNA?MORT.northAmerica:MORT.europe;
   const locs=Object.keys(data);
   const mlabel=metric==='cold'?'Cold':'Heat';
-  const trace={type:'choropleth',locationmode:'ISO-3',locations:locs,
+  const srKey=metric==='cold'?'srCold':'srHeat';
+  const useRate=!isNA; // only Europe (Masselot) has a comparable per-100,000 rate
+  const hl=(mortHighlight && data[mortHighlight])?mortHighlight:'';
+  const hover='<b>%{text}</b><br>'+mlabel+'-attributable deaths: %{z:.2f}% of all deaths'
+    +(useRate?'<br>Standardised rate: %{customdata} per 100,000':'')+'<extra></extra>';
+  const base={type:'choropleth',locationmode:'ISO-3',locations:locs,
     z:locs.map(k=>data[k][metric]),text:locs.map(k=>data[k].name),
-    hovertemplate:'<b>%{text}</b><br>'+mlabel+'-attributable deaths: %{z:.2f}% of all deaths<extra></extra>',
-    colorscale:scale,zmin:0,zmax:zmax,
-    marker:{line:{color:'#fff',width:0.6}},
-    colorbar:{title:{text:'%',font:{size:10}},thickness:9,len:0.7,x:1.0,tickfont:{size:9}}};
+    customdata:locs.map(k=>useRate?data[k][srKey]:null),hovertemplate:hover,
+    colorscale:scale,zmin:0,zmax:zmax,marker:{line:{color:'#fff',width:0.6}},
+    colorbar:{title:{text:'%',font:{size:10}},thickness:9,len:0.7,x:1.0,tickfont:{size:9}},
+    opacity:hl?0.4:1};
+  const traces=[base];
+  if(hl){
+    // Overlay the highlighted country at full opacity with a bold dark outline so
+    // it stands out while the rest are dimmed. Same scale, so its colour is unchanged.
+    traces.push({type:'choropleth',locationmode:'ISO-3',locations:[hl],z:[data[hl][metric]],
+      text:[data[hl].name],customdata:[useRate?data[hl][srKey]:null],hovertemplate:hover,
+      colorscale:scale,zmin:0,zmax:zmax,showscale:false,marker:{line:{color:'#111317',width:2.6}}});
+  }
   const mob=isMobile();
   const geoBase={resolution:50,showcountries:true,countrycolor:'#fff',showframe:false,
     showcoastlines:false,showland:true,landcolor:'#e7ebec',bgcolor:PANEL,projection:{type:'mercator'}};
   const geo=isNA
     ? Object.assign({scope:'north america',lonaxis:{range:[-140,-52]},lataxis:{range:[23,72]}},geoBase)
     : Object.assign({scope:'europe',lonaxis:{range:mob?[-10,35]:[-12,36]},lataxis:{range:[34,71]}},geoBase);
-  const layout={paper_bgcolor:PAPER,font:FONT,margin:{t:mob?2:4,b:0,l:0,r:0},height:smallMapHeight(id,isNA),geo:geo};
-  plotTarget(id,[trace],layout);
+  // hovermode set here (we bypass plot()), and dragmode is left default so the map pans.
+  const layout={paper_bgcolor:PAPER,font:FONT,hovermode:'closest',margin:{t:mob?2:4,b:0,l:0,r:0},height:smallMapHeight(id,isNA),geo:geo};
+  plotTarget(id,traces,layout,MORT_CONFIG);
 }
 function drawMortality(){
   const isNA=continent==='na';
@@ -546,6 +597,69 @@ function drawMortality(){
   $('mortHeatTitle').textContent='Heat, up to '+round1(heatMax)+'% of deaths';
   drawMortMap('mortCold','cold',COLD_SCALE,zmax,isNA);
   drawMortMap('mortHeat','heat',HEAT_SCALE,zmax,isNA);
+}
+
+// ---- mortality tab: highlight control, readout, reset view, share, deep links ----
+const VIEW_HASH={map:'cold-map', scatter:'climate-comfort', compare:'different-questions',
+  divergence:'comfort-gap', mortality:'deaths-cold-heat'};
+const mortRegionData=()=>continent==='na'?MORT.northAmerica:MORT.europe;
+function populateMortFocus(){
+  const data=mortRegionData();
+  const opts=Object.keys(data).map(k=>({iso:k,name:data[k].name})).sort((a,b)=>a.name.localeCompare(b.name));
+  const sel=$('mortFocus');
+  if(mortHighlight && !data[mortHighlight]) mortHighlight='';
+  sel.innerHTML='<option value="">a country</option>'+opts.map(o=>'<option value="'+o.iso+'">'+o.name+'</option>').join('');
+  sel.value=mortHighlight||'';
+}
+function updateMortReadout(){
+  const el=$('mortReadout'); const data=mortRegionData(); const c=mortHighlight?data[mortHighlight]:null;
+  if(!c){ el.innerHTML=''; return; }
+  // "no comparable figure" rather than a misleading zero when a value is absent.
+  const pct=v=>v==null?'no comparable figure':round1(v)+'% of deaths';
+  if(continent==='na'){
+    el.innerHTML='<b>'+c.name+'</b>: cold '+pct(c.cold)+', heat '+pct(c.heat)
+      +'. A per-100,000 rate is not available for the US and Canada source.';
+  } else {
+    const rate=v=>v==null?'no comparable figure':v+' per 100,000';
+    el.innerHTML='<b>'+c.name+'</b>: cold '+pct(c.cold)+' ('+rate(c.srCold)+'), heat '+pct(c.heat)+' ('+rate(c.srHeat)+').';
+  }
+}
+function syncMortControls(){ populateMortFocus(); updateMortReadout(); }
+function resetMortView(){ drawMortality(); } // re-render restores the original geo window
+
+function viewHash(){
+  if(cur==='mortality'){
+    let h='deaths-cold-heat='+(continent==='na'?'northamerica':'europe');
+    if(mortHighlight) h+='&highlight='+mortHighlight;
+    return h;
+  }
+  return VIEW_HASH[cur]||'';
+}
+function updateShareLinks(){
+  const url=location.href, title=MORT_META.title+' on Climate Poor';
+  if($('mortX')) $('mortX').href='https://twitter.com/intent/tweet?text='+encodeURIComponent(title)+'&url='+encodeURIComponent(url);
+  if($('mortLI')) $('mortLI').href='https://www.linkedin.com/sharing/share-offsite/?url='+encodeURIComponent(url);
+}
+function updateHash(){ history.replaceState(null,'','#'+viewHash()); updateShareLinks(); }
+function applyHash(){
+  const raw=(location.hash||'').replace(/^#/,''); if(!raw) return false;
+  const parts=raw.split('&'); const first=parts[0]; const eq=first.indexOf('=');
+  const slug=eq>=0?first.slice(0,eq):first;
+  const regionVal=eq>=0?decodeURIComponent(first.slice(eq+1)):'';
+  const params={}; parts.slice(1).forEach(p=>{ const i=p.indexOf('='); if(i>=0) params[p.slice(0,i)]=decodeURIComponent(p.slice(i+1)); });
+  const view=Object.keys(VIEW_HASH).find(v=>VIEW_HASH[v]===slug);
+  if(!view) return false;
+  if(view==='mortality'){
+    continent=(regionVal==='northamerica'||regionVal==='na')?'na':'eu';
+    mortHighlight=params.highlight||'';
+  }
+  setView(view); return true;
+}
+function setupMortShare(){
+  if(navigator.share){
+    const b=$('mortShareBtn'); b.style.display='';
+    b.addEventListener('click',()=>{ navigator.share({title:MORT_META.title, url:location.href}).catch(()=>{}); });
+  }
 }
 
 // Explicit label sides for the crowded points so labels do not stack. Finland
@@ -757,9 +871,8 @@ function setLegend(){
     legend.innerHTML=rs.map(r=>`<span><i style="background:${REGION_COLOR[r]}"></i>${r}</span>`).join('')
       +'<span style="color:#90a0a7">Dotted orange line: WHO 18\u00b0C benchmark</span>';
   } else if(cur==='mortality'){
-    const reg=continent==='na'?'US and Canada':'Europe';
-    legend.innerHTML='<span><i style="background:#12304b"></i>Cold</span><span><i style="background:#c1110b"></i>Heat</span>'
-      +'<span style="color:#90a0a7">Both maps share one scale, 0 to cold\'s maximum for '+reg+', so heat reads pale. See Explanation.</span>';
+    legend.innerHTML='<span style="color:#90a0a7">Cold (blue) and heat (orange) share one scale within each region, '
+      +'so heat looking pale is the point: it is a small fraction of cold. Each region is on its own scale; see Explanation.</span>';
   } else {
     legend.innerHTML='';
   }
@@ -815,12 +928,16 @@ function syncContext(){
   const showReadout=(onScatter||cur==='divergence');
   $('readout').style.display = showReadout?'block':'none';
   if(!showReadout) setReadout('');
+  // The highlight/share controls are scoped to the mortality tab only.
+  const isMort=cur==='mortality';
+  $('mortControls').style.display = isMort?'':'none';
+  if(isMort) syncMortControls();
 }
 
 function setView(v){
   cur=v;
   document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on',b.dataset.view===v));
-  setTexts(); syncContext(); setLegend();
+  setTexts(); syncContext(); setLegend(); updateHash();
   card.style.opacity='0.35';
   requestAnimationFrame(()=>{ render(); card.style.opacity='1'; });
 }
@@ -968,18 +1085,32 @@ async function boot(){
     const o=document.createElement('option'); o.value=n; o.textContent=n; sel.appendChild(o);
   });
   setupCompareTool();
-  setView('map');
+  setupMortShare();
+  // Open the tab encoded in the URL hash (region and highlight too), else default.
+  if(!applyHash()) setView('map');
 }
+// Respond to manual hash edits / shared links opened after load.
+window.addEventListener('hashchange',()=>{ applyHash(); });
 
 $('tabs').addEventListener('click',e=>{ if(e.target.dataset.view) setView(e.target.dataset.view); });
 $('metricpills').addEventListener('click',e=>{ if(e.target.dataset.m){ mapMetric=e.target.dataset.m;
   if(mapMetric==='tado') continent='eu'; // tado is Europe-only
   setTexts(); syncContext(); setLegend(); render(); } });
 $('geopills').addEventListener('click',e=>{ if(e.target.dataset.c){ continent=e.target.dataset.c;
-  setReadout(''); setTexts(); syncContext(); setLegend(); render(); } });
+  setReadout('');
+  if(cur==='mortality') mortHighlight=''; // reset the highlight when the region changes
+  setTexts(); syncContext(); setLegend(); render(); updateHash(); } });
 $('focus').addEventListener('change',e=>{ focusCountry=e.target.value; render();
   if(focusCountry){ setReadout(cur==='divergence'?divReadoutFor(focusCountry):scatterReadoutFor(focusCountry)); }
   else setReadout(''); });
+// Mortality tab: highlight a country on both maps, reset view, copy/share link.
+$('mortFocus').addEventListener('change',e=>{ mortHighlight=e.target.value; drawMortality(); updateMortReadout(); updateHash(); });
+$('mortReset').addEventListener('click',resetMortView);
+$('mortCopy').addEventListener('click',()=>{
+  const done=()=>{ const c=$('mortCopied'); c.textContent='Copied'; setTimeout(()=>{ c.textContent=''; },1500); };
+  if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(location.href).then(done,done); }
+  else done();
+});
 $('yearSlider').addEventListener('input',e=>{ MODEL.year=+e.target.value; $('yearLabel').textContent=MODEL.year; render(); });
 // Expand/collapse the dek on mobile.
 $('cdek').addEventListener('click',e=>{ if(e.target.closest&&e.target.closest('.dek-toggle')) toggleDek(); });

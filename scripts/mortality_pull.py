@@ -66,7 +66,11 @@ def read_europe():
                 continue  # drop the EU30 aggregate row
             out[iso] = {"name": row["country"].strip(),
                         "cold": round(float(row["af_cold_pct"]), 2),
-                        "heat": round(float(row["af_heat_pct"]), 2)}
+                        "heat": round(float(row["af_heat_pct"]), 2),
+                        # age-standardised rate per 100,000 (Masselot only; the
+                        # Gasparrini/OWID North America source has no comparable rate)
+                        "srCold": round(float(row["stdrate_cold"])),
+                        "srHeat": round(float(row["stdrate_heat"]))}
     return out
 
 

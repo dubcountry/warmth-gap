@@ -1,156 +1,216 @@
 {
-  "generated": "2026-06-27T16:33:02.940998+00:00",
+  "generated": "2026-06-27T19:21:37.702553+00:00",
   "indicator": "share of deaths attributable to temperature (%)",
   "europe": {
     "DNK": {
       "name": "Denmark",
       "cold": 8.24,
-      "heat": 0.26
+      "heat": 0.26,
+      "srCold": 108,
+      "srHeat": 3
     },
     "EST": {
       "name": "Estonia",
       "cold": 8.48,
-      "heat": 0.34
+      "heat": 0.34,
+      "srCold": 124,
+      "srHeat": 5
     },
     "FIN": {
       "name": "Finland",
       "cold": 8.94,
-      "heat": 0.28
+      "heat": 0.28,
+      "srCold": 106,
+      "srHeat": 3
     },
     "IRL": {
       "name": "Ireland",
       "cold": 12.47,
-      "heat": 0.06
+      "heat": 0.06,
+      "srCold": 149,
+      "srHeat": 1
     },
     "LVA": {
       "name": "Latvia",
       "cold": 9.65,
-      "heat": 0.66
+      "heat": 0.66,
+      "srCold": 173,
+      "srHeat": 12
     },
     "LTU": {
       "name": "Lithuania",
       "cold": 9.52,
-      "heat": 0.66
+      "heat": 0.66,
+      "srCold": 168,
+      "srHeat": 12
     },
     "NOR": {
       "name": "Norway",
       "cold": 9.34,
-      "heat": 0.24
+      "heat": 0.24,
+      "srCold": 107,
+      "srHeat": 3
     },
     "SWE": {
       "name": "Sweden",
       "cold": 8.46,
-      "heat": 0.27
+      "heat": 0.27,
+      "srCold": 97,
+      "srHeat": 3
     },
     "GBR": {
       "name": "United Kingdom",
       "cold": 9.48,
-      "heat": 0.16
+      "heat": 0.16,
+      "srCold": 121,
+      "srHeat": 2
     },
     "AUT": {
       "name": "Austria",
       "cold": 4.43,
-      "heat": 0.69
+      "heat": 0.69,
+      "srCold": 55,
+      "srHeat": 8
     },
     "BEL": {
       "name": "Belgium",
       "cold": 4.14,
-      "heat": 0.5
+      "heat": 0.5,
+      "srCold": 52,
+      "srHeat": 6
     },
     "FRA": {
       "name": "France",
       "cold": 5.45,
-      "heat": 0.46
+      "heat": 0.46,
+      "srCold": 55,
+      "srHeat": 5
     },
     "DEU": {
       "name": "Germany",
       "cold": 3.92,
-      "heat": 0.65
+      "heat": 0.65,
+      "srCold": 49,
+      "srHeat": 8
     },
     "LUX": {
       "name": "Luxembourg",
       "cold": 4.12,
-      "heat": 0.55
+      "heat": 0.55,
+      "srCold": 49,
+      "srHeat": 6
     },
     "NLD": {
       "name": "Netherlands",
       "cold": 3.3,
-      "heat": 0.55
+      "heat": 0.55,
+      "srCold": 42,
+      "srHeat": 6
     },
     "CHE": {
       "name": "Switzerland",
       "cold": 4.09,
-      "heat": 0.7
+      "heat": 0.7,
+      "srCold": 42,
+      "srHeat": 7
     },
     "BGR": {
       "name": "Bulgaria",
       "cold": 8.7,
-      "heat": 0.81
+      "heat": 0.81,
+      "srCold": 175,
+      "srHeat": 16
     },
     "CZE": {
       "name": "Czechia",
       "cold": 7.46,
-      "heat": 0.5
+      "heat": 0.5,
+      "srCold": 115,
+      "srHeat": 8
     },
     "HUN": {
       "name": "Hungary",
       "cold": 8.37,
-      "heat": 0.68
+      "heat": 0.68,
+      "srCold": 147,
+      "srHeat": 12
     },
     "POL": {
       "name": "Poland",
       "cold": 7.82,
-      "heat": 0.63
+      "heat": 0.63,
+      "srCold": 122,
+      "srHeat": 10
     },
     "ROU": {
       "name": "Romania",
       "cold": 9.63,
-      "heat": 0.86
+      "heat": 0.86,
+      "srCold": 185,
+      "srHeat": 16
     },
     "SVK": {
       "name": "Slovakia",
       "cold": 7.86,
-      "heat": 0.68
+      "heat": 0.68,
+      "srCold": 134,
+      "srHeat": 11
     },
     "HRV": {
       "name": "Croatia",
       "cold": 7.05,
-      "heat": 1.81
+      "heat": 1.81,
+      "srCold": 112,
+      "srHeat": 28
     },
     "CYP": {
       "name": "Cyprus",
       "cold": 7.92,
-      "heat": 1.22
+      "heat": 1.22,
+      "srCold": 98,
+      "srHeat": 15
     },
     "GRC": {
       "name": "Greece",
       "cold": 6.9,
-      "heat": 1.12
+      "heat": 1.12,
+      "srCold": 86,
+      "srHeat": 14
     },
     "ITA": {
       "name": "Italy",
       "cold": 6.28,
-      "heat": 1.47
+      "heat": 1.47,
+      "srCold": 68,
+      "srHeat": 16
     },
     "MLT": {
       "name": "Malta",
       "cold": 7.44,
-      "heat": 1.54
+      "heat": 1.54,
+      "srCold": 88,
+      "srHeat": 18
     },
     "PRT": {
       "name": "Portugal",
       "cold": 6.51,
-      "heat": 0.8
+      "heat": 0.8,
+      "srCold": 78,
+      "srHeat": 10
     },
     "SVN": {
       "name": "Slovenia",
       "cold": 4.9,
-      "heat": 1.38
+      "heat": 1.38,
+      "srCold": 60,
+      "srHeat": 17
     },
     "ESP": {
       "name": "Spain",
       "cold": 5.02,
-      "heat": 0.88
+      "heat": 0.88,
+      "srCold": 53,
+      "srHeat": 9
     }
   },
   "northAmerica": {
