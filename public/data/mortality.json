@@ -1,0 +1,168 @@
+{
+  "generated": "2026-06-27T16:33:02.940998+00:00",
+  "indicator": "share of deaths attributable to temperature (%)",
+  "europe": {
+    "DNK": {
+      "name": "Denmark",
+      "cold": 8.24,
+      "heat": 0.26
+    },
+    "EST": {
+      "name": "Estonia",
+      "cold": 8.48,
+      "heat": 0.34
+    },
+    "FIN": {
+      "name": "Finland",
+      "cold": 8.94,
+      "heat": 0.28
+    },
+    "IRL": {
+      "name": "Ireland",
+      "cold": 12.47,
+      "heat": 0.06
+    },
+    "LVA": {
+      "name": "Latvia",
+      "cold": 9.65,
+      "heat": 0.66
+    },
+    "LTU": {
+      "name": "Lithuania",
+      "cold": 9.52,
+      "heat": 0.66
+    },
+    "NOR": {
+      "name": "Norway",
+      "cold": 9.34,
+      "heat": 0.24
+    },
+    "SWE": {
+      "name": "Sweden",
+      "cold": 8.46,
+      "heat": 0.27
+    },
+    "GBR": {
+      "name": "United Kingdom",
+      "cold": 9.48,
+      "heat": 0.16
+    },
+    "AUT": {
+      "name": "Austria",
+      "cold": 4.43,
+      "heat": 0.69
+    },
+    "BEL": {
+      "name": "Belgium",
+      "cold": 4.14,
+      "heat": 0.5
+    },
+    "FRA": {
+      "name": "France",
+      "cold": 5.45,
+      "heat": 0.46
+    },
+    "DEU": {
+      "name": "Germany",
+      "cold": 3.92,
+      "heat": 0.65
+    },
+    "LUX": {
+      "name": "Luxembourg",
+      "cold": 4.12,
+      "heat": 0.55
+    },
+    "NLD": {
+      "name": "Netherlands",
+      "cold": 3.3,
+      "heat": 0.55
+    },
+    "CHE": {
+      "name": "Switzerland",
+      "cold": 4.09,
+      "heat": 0.7
+    },
+    "BGR": {
+      "name": "Bulgaria",
+      "cold": 8.7,
+      "heat": 0.81
+    },
+    "CZE": {
+      "name": "Czechia",
+      "cold": 7.46,
+      "heat": 0.5
+    },
+    "HUN": {
+      "name": "Hungary",
+      "cold": 8.37,
+      "heat": 0.68
+    },
+    "POL": {
+      "name": "Poland",
+      "cold": 7.82,
+      "heat": 0.63
+    },
+    "ROU": {
+      "name": "Romania",
+      "cold": 9.63,
+      "heat": 0.86
+    },
+    "SVK": {
+      "name": "Slovakia",
+      "cold": 7.86,
+      "heat": 0.68
+    },
+    "HRV": {
+      "name": "Croatia",
+      "cold": 7.05,
+      "heat": 1.81
+    },
+    "CYP": {
+      "name": "Cyprus",
+      "cold": 7.92,
+      "heat": 1.22
+    },
+    "GRC": {
+      "name": "Greece",
+      "cold": 6.9,
+      "heat": 1.12
+    },
+    "ITA": {
+      "name": "Italy",
+      "cold": 6.28,
+      "heat": 1.47
+    },
+    "MLT": {
+      "name": "Malta",
+      "cold": 7.44,
+      "heat": 1.54
+    },
+    "PRT": {
+      "name": "Portugal",
+      "cold": 6.51,
+      "heat": 0.8
+    },
+    "SVN": {
+      "name": "Slovenia",
+      "cold": 4.9,
+      "heat": 1.38
+    },
+    "ESP": {
+      "name": "Spain",
+      "cold": 5.02,
+      "heat": 0.88
+    }
+  },
+  "northAmerica": {
+    "CAN": {
+      "name": "Canada",
+      "cold": 4.46,
+      "heat": 0.53
+    },
+    "USA": {
+      "name": "United States",
+      "cold": 5.6,
+      "heat": 0.35
+    }
+  }
+}

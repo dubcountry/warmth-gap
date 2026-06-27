@@ -127,6 +127,7 @@
       <button data-view="scatter">Climate vs comfort</button>
       <button data-view="compare">Different questions</button>
       <button data-view="divergence">The comfort gap</button>
+      <button data-view="mortality">What the cold costs</button>
     </div>
     <label class="focus" id="focusWrap">Highlight
       <select id="focus"><option value="">a country</option></select>
@@ -143,6 +144,10 @@
     <div class="metricpills" id="metricpills" style="display:none">
       <button data-m="warm" class="on">Cannot keep warm</button>
       <button data-m="tado">Indoor warmth</button>
+    </div>
+    <div class="metricpills" id="deathpills" style="display:none">
+      <button data-d="cold" class="on">Cold</button>
+      <button data-d="heat">Heat</button>
     </div>
     <div class="slider" id="sliderWrap" style="display:none">
       Year <input type="range" id="yearSlider"><b id="yearLabel"></b>
@@ -273,9 +278,38 @@ const INSIGHT={
   divergence:'Finland and Bulgaria heat their measured homes to about the same 20C, yet only a small share of Finns cannot keep warm against roughly a fifth of Bulgarians. Greece, Spain and Portugal join Bulgaria in the shaded corner, where comfortable thermostats sit above large numbers of people who cannot keep warm. Because the data sees only affluent, connected homes, a country\'s position higher up the chart marks a wider gap between the comfort of the few and the cold of the many.'
 };
 
+// ---- "What the cold costs": temperature-attributable mortality (% of deaths) ----
+// Europe = Masselot et al. 2023 (corrected). North America = Gasparrini et al.
+// 2015 via OWID. The two regions are kept on SEPARATE colour scales because the
+// studies and methods differ. Full data loads from data/mortality.json (built by
+// scripts/mortality_pull.py); this embedded subset is the offline fallback.
+const MORT_SAMPLE={
+  europe:{
+    IRL:{name:'Ireland',cold:12.47,heat:0.06}, ROU:{name:'Romania',cold:9.63,heat:0.86},
+    GBR:{name:'United Kingdom',cold:9.48,heat:0.16}, BGR:{name:'Bulgaria',cold:8.70,heat:0.81},
+    FIN:{name:'Finland',cold:8.94,heat:0.28}, GRC:{name:'Greece',cold:6.90,heat:1.12},
+    ITA:{name:'Italy',cold:6.28,heat:1.47}, ESP:{name:'Spain',cold:5.02,heat:0.88},
+    DEU:{name:'Germany',cold:3.92,heat:0.65}, NLD:{name:'Netherlands',cold:3.30,heat:0.55}
+  },
+  northAmerica:{
+    USA:{name:'United States',cold:5.60,heat:0.35}, CAN:{name:'Canada',cold:4.46,heat:0.53}
+  }
+};
+let MORT=MORT_SAMPLE; // replaced by the data file in boot() if it loads
+
+const MORT_META={
+  title:'What the cold costs',
+  dek:'Across Europe and North America, cold causes a far larger share of deaths than heat, in every region shown. '
+    +'The two regions come from different studies and sit on separate colour scales, so read them as a broad pattern rather than exact, like-for-like numbers. '
+    +'Europe is Masselot et al. 2023 in Lancet Planetary Health, the corrected series (Zenodo 10.5281/zenodo.10288665), covering the urban population aged 20 and over from 2000 to 2019. '
+    +'North America is Gasparrini et al. 2015, national figures as a share of all deaths. '
+    +'In every region cold-attributable mortality runs well above heat, including in warm places like the US South.',
+  insight:'Cold\'s share of temperature-related deaths runs several times heat\'s across both regions, and the pattern holds even where winters are mild. Latitude does not protect against cold so much as income, housing and health systems do.'
+};
+
 // ---- data model ----
 let MODEL={real:false, year:2024, years:[2024], byIso:{}};
-let cur='map', mapMetric='warm', focusCountry='', continent='eu';
+let cur='map', mapMetric='warm', focusCountry='', continent='eu', deathMetric='cold';
 
 const $=id=>document.getElementById(id);
 const card=$('card'), legend=$('legend');
@@ -459,6 +493,33 @@ function drawMap(metric){
       projection:{type:'mercator'},
       lonaxis:{range:mob?[-10,35]:[-26,46]},lataxis:{range:mob?[34,71]:[33,71]}}};
   // dragmode:false (from plot()) plus scrollZoom/doubleClick off keeps the map fixed: no zoom, no pan.
+  plot([trace],layout);
+}
+
+// "What the cold costs": one choropleth of temperature-attributable deaths (%).
+// Cold and heat share a single colour scale WITHIN a region (so toggling to heat
+// goes pale and the toggle itself carries the "cold kills far more" point), while
+// Europe and North America keep SEPARATE scales (different studies) by each using
+// its own cold maximum as zmax.
+function drawMortality(){
+  const isNA=continent==='na';
+  const data=isNA?MORT.northAmerica:MORT.europe;
+  const locs=Object.keys(data);
+  const zmax=Math.max(...locs.map(k=>data[k].cold), 1);
+  const mlabel=deathMetric==='cold'?'Cold':'Heat';
+  const trace={type:'choropleth',locationmode:'ISO-3',locations:locs,
+    z:locs.map(k=>data[k][deathMetric]),text:locs.map(k=>data[k].name),
+    hovertemplate:'<b>%{text}</b><br>'+mlabel+'-attributable deaths: %{z:.2f}% of all deaths<extra></extra>',
+    colorscale:[[0,'#eef0e9'],[0.5,'#e8896a'],[1,'#c1110b']],zmin:0,zmax:zmax,
+    marker:{line:{color:'#fff',width:0.8}},
+    colorbar:{title:{text:'%',font:{size:11}},thickness:12,len:0.62,x:0.97,tickfont:{size:10}}};
+  const mob=isMobile();
+  const geoBase={resolution:50,showcountries:true,countrycolor:'#fff',showframe:false,
+    showcoastlines:false,showland:true,landcolor:'#e7ebec',bgcolor:PANEL,projection:{type:'mercator'}};
+  const geo=isNA
+    ? Object.assign({scope:'north america',lonaxis:{range:[-140,-52]},lataxis:{range:[23,72]}},geoBase)
+    : Object.assign({scope:'europe',lonaxis:{range:mob?[-10,35]:[-26,46]},lataxis:{range:mob?[34,71]:[33,71]}},geoBase);
+  const layout={paper_bgcolor:PAPER,font:FONT,margin:{t:mob?3:6,b:0,l:0,r:0},height:mapHeight(),geo:geo};
   plot([trace],layout);
 }
 
@@ -670,6 +731,10 @@ function setLegend(){
     const rs=[...new Set(divPoints().map(p=>p.region))];
     legend.innerHTML=rs.map(r=>`<span><i style="background:${REGION_COLOR[r]}"></i>${r}</span>`).join('')
       +'<span style="color:#90a0a7">Dotted orange line: WHO 18\u00b0C benchmark</span>';
+  } else if(cur==='mortality'){
+    const reg=continent==='na'?'US and Canada':'Europe';
+    legend.innerHTML='<span style="color:#90a0a7">Darker red: larger share of deaths from '
+      +(deathMetric==='cold'?'cold':'heat')+'. '+reg+', on its own scale (see Explanation)</span>';
   } else {
     legend.innerHTML='';
   }
@@ -684,6 +749,7 @@ function render(){
   if(isCompare){ $('compareHTML').innerHTML=buildCompareHTML(); return; }
   if(cur==='map')drawMap(mapMetric);
   else if(cur==='scatter')drawScatter();
+  else if(cur==='mortality')drawMortality();
   else drawDivergence();
 }
 
@@ -697,15 +763,26 @@ function setTexts(){
     setDek(US_SCATTER_DEK);
     $('source').textContent='Source: EIA RECS (energy insecurity) and US heating degree days converted to the Celsius base. Approximate.';
     $('insight').innerHTML=US_SCATTER_INSIGHT;
+  } else if(cur==='mortality'){
+    $('ctitle').textContent=MORT_META.title;
+    setDek(MORT_META.dek);
+    // Per-map source caption, short and always visible; the two regions differ.
+    $('source').textContent= continent==='na'
+      ? 'US and Canada: Gasparrini et al. 2015, via Our World in Data'
+      : 'Europe: Masselot et al. 2023 (corrected)';
+    $('insight').innerHTML=MORT_META.insight;
+    document.querySelectorAll('#deathpills button').forEach(b=>b.classList.toggle('on',b.dataset.d===deathMetric));
   } else { const m=VIEW[cur]; $('ctitle').textContent=m.title; setDek(m.dek); $('source').textContent=m.source; $('insight').innerHTML=INSIGHT[cur]; }
   document.querySelectorAll('#geopills button').forEach(b=>b.classList.toggle('on',b.dataset.c===continent));
 }
 function syncContext(){
   const onScatter=cur==='scatter';
-  // Continent toggle shows on the hardship map and the scatter only; tado and
-  // divergence are Europe-only, so it stays hidden there.
-  const showGeo=(cur==='map'&&mapMetric==='warm')||onScatter;
+  // Continent toggle shows on the hardship map, the scatter, and the mortality
+  // map; tado and divergence are Europe-only, so it stays hidden there.
+  const showGeo=(cur==='map'&&mapMetric==='warm')||onScatter||cur==='mortality';
   $('geopills').style.display = showGeo?'flex':'none';
+  // Cold/Heat toggle is the mortality view's own control.
+  $('deathpills').style.display = (cur==='mortality')?'flex':'none';
   // Metric (warm/tado) only applies to the European map; the US layer has one measure.
   $('metricpills').style.display = (cur==='map'&&continent==='eu')?'flex':'none';
   $('focusWrap').style.display = (onScatter||cur==='divergence')?'flex':'none';
@@ -854,6 +931,13 @@ async function boot(){
     if(!r.ok) throw new Error('no data file');
     applyRealModel(await r.json());
   }catch(e){ applySampleModel(); }
+  // Mortality data (static study output); fall back to the embedded subset.
+  try{
+    const r=await fetch('data/mortality.json',{cache:'no-store'});
+    if(!r.ok) throw new Error('no mortality file');
+    const j=await r.json();
+    if(j.europe&&j.northAmerica) MORT={europe:j.europe, northAmerica:j.northAmerica};
+  }catch(e){ MORT=MORT_SAMPLE; }
   showStatus(); setupSlider();
   // populate country highlight from whatever model loaded
   const sel=$('focus');
@@ -870,6 +954,8 @@ $('metricpills').addEventListener('click',e=>{ if(e.target.dataset.m){ mapMetric
   setTexts(); syncContext(); setLegend(); render(); } });
 $('geopills').addEventListener('click',e=>{ if(e.target.dataset.c){ continent=e.target.dataset.c;
   setReadout(''); setTexts(); syncContext(); setLegend(); render(); } });
+$('deathpills').addEventListener('click',e=>{ if(e.target.dataset.d){ deathMetric=e.target.dataset.d;
+  setTexts(); syncContext(); setLegend(); render(); } });
 $('focus').addEventListener('change',e=>{ focusCountry=e.target.value; render();
   if(focusCountry){ setReadout(cur==='divergence'?divReadoutFor(focusCountry):scatterReadoutFor(focusCountry)); }
   else setReadout(''); });
@@ -888,6 +974,7 @@ window.addEventListener('resize',()=>{
   if(cur==='compare') return;
   if(cur==='map') drawMap(mapMetric);
   else if(cur==='scatter') drawScatter();
+  else if(cur==='mortality') drawMortality();
   else if(cur==='divergence') drawDivergence();
 });
 // Safety net for touch: tapping outside the chart clears any tooltip that latched.
